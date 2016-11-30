@@ -6,7 +6,8 @@ namespace fs{
     class FlyingSpore;
     class SporeBuilder;
     class FormatBuilder;
-
+    class Pin;
+    class Runtime;
     class CellContext;
     class DataPackage;
     //数值定位符号，类似于: fileInfo/state这样的路径
@@ -24,10 +25,21 @@ namespace myspore{
 int __main(){
 
 
-    auto nest = fs::LocalNest();
+    //关于运行环境的配置
+
+
+    Nest nest;
+    //作为一个开放的Nest，最多32个执行器，具备全功能执行能力，可被发现、可被查询、可中转查询、可接受任务、可分派任务、可接受主控权、可转移主控权、可隐身访问
+    Runtime rt(32, AS_FULL_FUNCTION);
+    nest.publish(rt, "127.0.0.1", 6101/*链路端口*/, 6201/*业务端口*/ );
+    //或者作为一个集群的受控Nest，接收集群配置的spore定义文件内的任务
+    Runtime rt0;//可支持的运行时环境，默认为空，即是隐身的Nest，不能和其他的Nest链接，可访问该配置文件定义的环境内容
+    nest.join(rt0, "https://github.com/kicsy/flying/demo/publish/process/Video_processing.fspd");
+    //或者作为一个扩展的Nest，加入到另一个Nest的活动中
+    nest.join(rt, "127.0.0.1"/*另一Nest的地址*/, 6102/*链路端口*/, 6202/*业务端口*/ );
 
     //定义一个 spore builder，指定基类
-    auto b_root = fs::SporeBuilder<fs::FlyingSpore>(nest);
+    auto b_root = fs::SporeBuilder<fs::FlyingSpore>();
 
 
     //为root spore 添加环境变量
@@ -43,12 +55,12 @@ int __main(){
     标准类型的条目通过名称访问(底层可能的话需要映射成ID来访问这样快些)
     自定义类型的话，在传递过程中可能类型会丢失，在使用时需做显示类型转，不是类型安全的操作方式
     */
-    auto df_base = fs::make_fromat("{filename:string; duration:unsigned int; postion: unsigned int; size{width:int; height:int;}; state:int}");
-    auto df_av = fs::make_fromat<av_context>();
-    auto df_avFrame = fs::make_fromat<AVFrame>();
-    auto df_cmd = fs::make_fromat("{cmdCode:int;seekPos:int(*); }");
+    auto df_base = b_root.make_fromat("{filename:string; duration:unsigned int; postion: unsigned int; size{width:int; height:int;}; state:int}");
+    auto df_av = b_root.make_fromat<av_context>();
+    auto df_avFrame = b_root.make_fromat<AVFrame>();
+    auto df_cmd = b_root.make_fromat("{cmdCode:int;seekPos:int(*); }");
     //也可以注册到格式定义系统
-    nest.reg_format("df_my_spore_evn", df_base);
+    b_root.reg_format("df_my_spore_evn", df_base);
 
     /*
     通过add_context添加环境变量，返回的应该是share_prt<>，使用环境变量的好处是它可以被系列化，传递或者同步到另一个cell
@@ -58,7 +70,7 @@ int __main(){
     //或者
     ctx_root_base = b_root.add_context("fileInfo", df_base);
     //或者
-    ctx_root_base = b_root.add_context("fileInfo", fs::local_format("df_my_spore_evn"));
+    ctx_root_base = b_root.add_context("fileInfo", nest.format("df_my_spore_evn"));
 
     //自定义类型环境变量
     auto ctx_root_av = b_root.add_context<av_context>("AVInfo");
@@ -68,7 +80,7 @@ int __main(){
     /*
     分配执行器， 它从父cell（spore）的池里拆分出需要的执行器
     */
-    auto act_dec = b_root.alloc_actuator(1, "act_dec");
+    auto act_demux = b_root.alloc_actuator(1, "act_demux");
 
     //添加输出pin，负责输出解包后的Pack
     auto pin_out_avpack = b_root.add_out_pin("out_avpack", 
@@ -166,7 +178,7 @@ int __main(){
         //更新环境状态
         context["state"] = pack["cmdCode"].asInt();
     },
-        act_dec
+        act_demux
         );
 
     /*下面是解包和渲染的spore定义，它俩单独放在一个spore里，是因为解包后有可能有多个流，而每个流我们都需要两个单独的执行器来解码和渲染，
@@ -177,7 +189,9 @@ int __main(){
     private:
 
     public:
-        AVStreamSpore(const Nest &nest):OrgSpore(nest){
+        AVStreamSpore(){
+            auto act_decode = alloc_actuator(1, "act_decode");
+            auto act_decode = alloc_actuator(1, "act_render");
 
         }
     }
@@ -185,6 +199,8 @@ int __main(){
 
     //注册spore
     nest.reg_spore("RootSpore", b_root);
+    //执行
+    nest.run(b_root);
 }
 
 #endif // DEMO_H_INCLUDED
