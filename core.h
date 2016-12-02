@@ -47,11 +47,11 @@ namespace sf
 
 	};
 
-	//pin meta data struct
-	enum _meta_pin_type{_LEFT, _RIGHT};
-	struct _meta_pin : public _meta_id{
+	//axon meta data struct
+	enum _meta_axon_type{IN, OUT};
+	struct _meta_axon : public _meta_id{
 		_id_t _cell_id;
-		_meta_pin_type _type;
+		_meta_axon_type _type;
 		_id_t _Te_id;
 	};
 
@@ -69,8 +69,8 @@ namespace sf
 	//path meta data struct
 	struct _meta_path : public _meta_id{
 		_id_t _data_description_id;
-		_id_t _left_pin_id;
-		_id_t _right_pin_id;
+		_id_t _left_axon_id;
+		_id_t _right_axon_id;
 	};
 
 	//pack meta data struct
