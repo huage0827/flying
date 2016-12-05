@@ -8,11 +8,11 @@
 #include <future>
 #include <type_traits>
 
-#include "SyncDeque.h"
+#include "sync_deque.h"
 
-namespace kcc {
+namespace fs{
 
-	struct taskWrap
+	struct task_wrap
 	{
 	public:
 		/*
@@ -22,17 +22,17 @@ namespace kcc {
 		typedef void(*_pfn_release)(void*);
 
 		typedef std::packaged_task<void()> _wrap_type;
-		taskWrap():_fire(0),_release(0){
+		task_wrap():_fire(0),_release(0){
 		}
-		taskWrap(const taskWrap&) = delete;
-		taskWrap& operator=(const taskWrap&) = delete;
-		taskWrap(taskWrap&& __other):_fire(0),_release(0)
+		task_wrap(const task_wrap&) = delete;
+		task_wrap& operator=(const task_wrap&) = delete;
+		task_wrap(task_wrap&& __other):_fire(0),_release(0)
 		{
 			std::swap(__other._task, _task);
 			std::swap(__other._fire, _fire);
 			std::swap(__other._release, _release);
 		}
-		taskWrap& operator=(taskWrap&& __other) noexcept
+		task_wrap& operator=(task_wrap&& __other) noexcept
 		{
 			std::swap(__other._task, _task);
 			std::swap(__other._fire, _fire);
@@ -44,51 +44,49 @@ namespace kcc {
 			if(_fire)
 				(_fire)(reinterpret_cast<void*>(this));
 		}
-		~taskWrap() {
+		~task_wrap() {
 			if(_release)
 				(_release)(reinterpret_cast<void*>(this));
 		}
 		_wrap_type _task;
 		_pfn_fire _fire;
 		_pfn_release _release;
-		//std::function<void(void*)> _fire;
-		//std::function<void(void*)> _release;
 	};
 
 	template<typename _Res>
-	struct anyTaskWrap : public taskWrap
+	struct any_task_wrap : public task_wrap
 	{
-		anyTaskWrap() :taskWrap() {}
-		anyTaskWrap(const anyTaskWrap&) = delete;
-		anyTaskWrap& operator=(const anyTaskWrap&) = delete;
-		taskWrap& operator=(taskWrap&& __other) = delete;
+		any_task_wrap() :task_wrap() {}
+		any_task_wrap(const any_task_wrap&) = delete;
+		any_task_wrap& operator=(const any_task_wrap&) = delete;
+		task_wrap& operator=(task_wrap&& __other) = delete;
 	public:
 		typedef std::packaged_task<_Res()> _task_any_type;
-		~anyTaskWrap() {
+		~any_task_wrap() {
 		}
-		anyTaskWrap(_task_any_type&& anytask){
+		any_task_wrap(_task_any_type&& anytask){
 			static_assert(sizeof(_task_any_type) == sizeof(_wrap_type), "The length of task is not consistent");
 			(*reinterpret_cast<_task_any_type*> (&_task)).swap(anytask);
-			_fire = &anyTaskWrap<_Res>::fire;
-			_release = &anyTaskWrap<_Res>::release;
+			_fire = &any_task_wrap<_Res>::fire;
+			_release = &any_task_wrap<_Res>::release;
 		}
 	protected:
 		static void fire(void* inst){
-			anyTaskWrap<_Res> *pthis = reinterpret_cast<anyTaskWrap<_Res>*>(inst);
+			any_task_wrap<_Res> *pthis = reinterpret_cast<any_task_wrap<_Res>*>(inst);
 			(*reinterpret_cast<_task_any_type*> (&pthis->_task))();
 		}
 		static void release(void* inst) {
-			anyTaskWrap<_Res> *pthis = reinterpret_cast<anyTaskWrap<_Res>*>(inst);
+			any_task_wrap<_Res> *pthis = reinterpret_cast<any_task_wrap<_Res>*>(inst);
 			_task_any_type _t;
 			_t.swap(*reinterpret_cast<_task_any_type*> (&pthis->_task));
 		}
 	};
 
-	class Thread_Pool
+	class task_pool
 	{
 	public:
-		typedef taskWrap task_type;
-		typedef  SyncDeque<task_type> WorkQueue;
+		typedef task_wrap task_type;
+		typedef  sync_deque<task_type> WorkQueue;
 	protected:
 		std::atomic_bool done{ false };
 		WorkQueue taskQueue;
@@ -117,25 +115,25 @@ namespace kcc {
 			}while (!done);
 		}
 	public:
-	    static Thread_Pool& getInstance()
+	    static task_pool& get_instance()
 	    {
-	        static Thread_Pool _inst;
+	        static task_pool _inst;
 	        return _inst;
 	    }
 
-		Thread_Pool(unsigned int th_count = std::thread::hardware_concurrency() + 1):thread_count(th_count)
+		task_pool(unsigned int th_count = std::thread::hardware_concurrency() + 1):thread_count(th_count)
 		{
 			try
 			{
 				for (unsigned i = 0; i < thread_count; ++i)
-					threads.push_back(std::thread(&Thread_Pool::worker_thread, this));
+					threads.push_back(std::thread(&task_pool::worker_thread, this));
 			}
 			catch (...)
 			{
 				throw;
 			}
 		}
-		~Thread_Pool()
+		~task_pool()
 		{
 			join();
 		}
@@ -150,7 +148,7 @@ namespace kcc {
 			packaged_task_type task(std::bind(std::forward<Func>(f), std::forward<Args>(args)...));
 			task_handle<result_type> res(task.get_future());
 
-			kcc::anyTaskWrap<result_type> _tw(std::move(task));
+			fs::anyTaskWrap<result_type> _tw(std::move(task));
 			taskQueue.push(std::move(*(reinterpret_cast<task_type*>(&_tw))), fifo);
 			return res;
 		}
@@ -163,19 +161,19 @@ namespace kcc {
 		void join(){
 		    done = true;
 			for (unsigned i = 0; i < thread_count; ++i)
-				submit(false, std::bind(&Thread_Pool::exist_func, this));
+				submit(false, std::bind(&task_pool::exist_func, this));
 			for (auto &th : threads)
 			{
 				if (th.joinable())
 					th.join();
 			}
 		}
-		unsigned int getFinishCount()
+		unsigned int get_finish_count()
 		{
 			return finishCount.load(std::memory_order_relaxed);
 		}
 
-		unsigned int getThreadCount()
+		unsigned int get_thread_count()
 		{
 		    return thread_count;
 		}

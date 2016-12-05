@@ -6,19 +6,19 @@
 #include <condition_variable>
 #include <memory>
 
-namespace kcc{
+namespace fs{
 
 	template<typename T>
-	class SyncDeque
+	class sync_deque
 	{
 	private:
 		mutable std::mutex mut;
 		std::deque<T> data_queue;
 		std::condition_variable data_cond;
 	public:
-		SyncDeque()
+		sync_deque()
 		{}
-		SyncDeque(SyncDeque const& other)
+		sync_deque(sync_deque const& other)
 		{
 			std::lock_guard<std::mutex> lk(other.mut);
 			data_queue=other.data_queue;
