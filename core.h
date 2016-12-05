@@ -33,7 +33,7 @@ namespace sf
 		_p_rawdata_t* _pdata;
 		_id_t _alloc_id; //数据分配池的ID，每个cell分配的数据，ID为cell的ID，否则为预定义的分配池ID 
 	};
-	typedef std::shared_ptr<_meta_raw_data> _data_t;
+	typedef std::shared_ptr<_meta_raw_data> _p_meta_raw_data_t;
 
 
 	//spore meta data struct
@@ -65,6 +65,7 @@ namespace sf
 		_pfn_pack_to_left_neure _to_in_neure;
 		_pfn_pack_to_right_neure _to_out_neure;
 	};
+    typedef std::shared_ptr<_meta_neure> _p_meta_neure_t;
 
 	//path meta data struct
 	struct _meta_path : public _meta_id{
@@ -78,24 +79,10 @@ namespace sf
 		_data_t _data; //
 		_id_t _path_id;
 	};
-	typedef std::unique_ptr<_meta_pack> _pack_t;
+	typedef std::unique_ptr<_meta_pack> _p_meta_pack_t;
 
     /*---------------------------------------------------------------------------------*/
 
-    typedef std::shared_ptr<_meta_neure> _neure_t;
-
-    class nenre : public _meta_neure{
-    public:
-        
-    };
-
-    class axon{
-
-        /* */
-        enum  signal{data_in};
-        data_pack_builder& get_data_pack_builder();
-        void push(data_pack&& _data_pack);
-    };
 
 
 

@@ -25,7 +25,7 @@ namespace fs {
         const func_pack_action &_action;
         const func_pack_fill &_fill;
         std::vector<std::thread> _threads;
-        unsigned int const base_thread_count;
+        unsigned int const _base_thread_count;
         std::atomic_uint _finish_count{0};
         void worker_thread(){
             do{
@@ -41,11 +41,11 @@ namespace fs {
     public:
 
         thread_group(const func_pack_action &_a, const func_pack_fill &_f, unsigned int th_count, unsigned int max_queue_size = 0):
-            _action(_a),_fill(_f),base_thread_count(th_count),_pack_queue(max_queue_size){
+            _action(_a),_fill(_f),_base_thread_count(th_count),_pack_queue(max_queue_size){
                 if(!_action || !_fill)
                     throw;
                 try{
-                    for (unsigned i = 0; i < base_thread_count; ++i)
+                    for (unsigned i = 0; i < _base_thread_count; ++i)
                         _threads.push_back(std::thread(&thread_group::worker_thread, this));
                 }
                 catch (...){
@@ -62,7 +62,7 @@ namespace fs {
 
         void join(){
             _done = true;
-            for (unsigned i = 0; i < base_thread_count; ++i)
+            for (unsigned i = 0; i < _base_thread_count; ++i)
                 submit(std::move(_fill()), false);
             for (auto &th : _threads)
             {
@@ -74,7 +74,7 @@ namespace fs {
             return _finish_count.load(std::memory_order_relaxed);
         }
         unsigned int get_thread_count(){
-            return base_thread_count;
+            return _base_thread_count;
         }
     };
 

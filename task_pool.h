@@ -12,8 +12,7 @@
 
 namespace fs{
 
-	struct task_wrap
-	{
+	struct task_wrap{
 	public:
 		/*
 			下面定义执行与释放的funtion，按理来时说应该使用std::function<void(void*)>，但这个结构在VC14下sizeof太大，达到40Byte
@@ -26,21 +25,18 @@ namespace fs{
 		}
 		task_wrap(const task_wrap&) = delete;
 		task_wrap& operator=(const task_wrap&) = delete;
-		task_wrap(task_wrap&& __other):_fire(0),_release(0)
-		{
+		task_wrap(task_wrap&& __other):_fire(0),_release(0){
 			std::swap(__other._task, _task);
 			std::swap(__other._fire, _fire);
 			std::swap(__other._release, _release);
 		}
-		task_wrap& operator=(task_wrap&& __other) noexcept
-		{
+		task_wrap& operator=(task_wrap&& __other) noexcept{
 			std::swap(__other._task, _task);
 			std::swap(__other._fire, _fire);
 			std::swap(__other._release, _release);
 			return *this;
 		}
-		void operator()()
-		{
+		void operator()(){
 			if(_fire)
 				(_fire)(reinterpret_cast<void*>(this));
 		}
@@ -54,8 +50,7 @@ namespace fs{
 	};
 
 	template<typename _Res>
-	struct any_task_wrap : public task_wrap
-	{
+	struct any_task_wrap : public task_wrap{
 		any_task_wrap() :task_wrap() {}
 		any_task_wrap(const any_task_wrap&) = delete;
 		any_task_wrap& operator=(const any_task_wrap&) = delete;
@@ -82,100 +77,86 @@ namespace fs{
 		}
 	};
 
-	class task_pool
-	{
+	class task_pool{
 	public:
 		typedef task_wrap task_type;
-		typedef  sync_deque<task_type> WorkQueue;
+		typedef  sync_deque<task_type> task_queue_t;
 	protected:
-		std::atomic_bool done{ false };
-		WorkQueue taskQueue;
-		std::vector<std::thread> threads;
-		unsigned int const thread_count;
-		std::atomic_uint finishCount{0};
+		std::atomic_bool _done{ false };
+		task_queue_t _task_queue;
+		std::vector<std::thread> _threads;
+		unsigned int const _thread_count;
+		std::atomic_uint _finish_count{0};
 
 		void exist_func(){
-			finishCount.fetch_add(1);
+			_finish_count.fetch_add(1);
 		}
 
-		void worker_thread()
-		{
-			do
-			{
+		void worker_thread(){
+			do{
 				task_type task;
-				taskQueue.wait_and_pop(task);
-				try
-				{
+				_task_queue.wait_and_pop(task);
+				try{
 					(task)();
-				}
-				catch (...)
-				{
+				}catch (...){
 					//deal_interrupting
 				}
-			}while (!done);
+			}while (!_done);
 		}
 	public:
-	    static task_pool& get_instance()
-	    {
+	    static task_pool& get_instance(){
 	        static task_pool _inst;
 	        return _inst;
 	    }
 
-		task_pool(unsigned int th_count = std::thread::hardware_concurrency() + 1):thread_count(th_count)
-		{
+		task_pool(unsigned int th_count = std::thread::hardware_concurrency() + 1):_thread_count(th_count){
 			try
 			{
-				for (unsigned i = 0; i < thread_count; ++i)
-					threads.push_back(std::thread(&task_pool::worker_thread, this));
+				for (unsigned i = 0; i < _thread_count; ++i)
+					_threads.push_back(std::thread(&task_pool::worker_thread, this));
 			}
 			catch (...)
 			{
 				throw;
 			}
 		}
-		~task_pool()
-		{
+		~task_pool(){
 			join();
 		}
 		template<typename ResultType>
 		using task_handle = std::future<ResultType>;
 
 		template<typename Func, typename... Args>
-		task_handle<typename std::result_of<Func(Args...)>::type> submit(bool fifo, Func&& f, Args&&... args)
-		{
+		task_handle<typename std::result_of<Func(Args...)>::type> submit(bool fifo, Func&& f, Args&&... args){
 			typedef typename std::result_of<Func(Args...)>::type result_type;
 			typedef std::packaged_task<result_type()> packaged_task_type;
 			packaged_task_type task(std::bind(std::forward<Func>(f), std::forward<Args>(args)...));
 			task_handle<result_type> res(task.get_future());
 
-			fs::anyTaskWrap<result_type> _tw(std::move(task));
-			taskQueue.push(std::move(*(reinterpret_cast<task_type*>(&_tw))), fifo);
+			fs::any_task_wrap<result_type> _tw(std::move(task));
+			_task_queue.push(std::move(*(reinterpret_cast<task_type*>(&_tw))), fifo);
 			return res;
 		}
 		template<typename Func, typename... Args>
-		task_handle<typename std::result_of<Func(Args...)>::type> submit(Func&& f, Args&&... args)
-		{
+		task_handle<typename std::result_of<Func(Args...)>::type> submit(Func&& f, Args&&... args){
 			return submit(true, std::forward<Func>(f), std::forward<Args>(args)...);
 		}
 
 		void join(){
-		    done = true;
-			for (unsigned i = 0; i < thread_count; ++i)
+		    _done = true;
+			for (unsigned i = 0; i < _thread_count; ++i)
 				submit(false, std::bind(&task_pool::exist_func, this));
-			for (auto &th : threads)
-			{
+			for (auto &th : _threads){
 				if (th.joinable())
 					th.join();
 			}
 		}
-		unsigned int get_finish_count()
-		{
-			return finishCount.load(std::memory_order_relaxed);
+		unsigned int get_finish_count(){
+			return _finish_count.load(std::memory_order_relaxed);
 		}
 
-		unsigned int get_thread_count()
-		{
-		    return thread_count;
+		unsigned int get_thread_count(){
+		    return _thread_count;
 		}
 	};
 }
