@@ -12,8 +12,8 @@ namespace sf
 	typedef long long _id_t;
 	typedef unsigned char _p_rawdata_t;
 
-	typedef bool (*_pfn_pack_to_left_te)(const _pack_t&&);
-	typedef bool (*_pfn_pack_to_right_te)(const _pack_t&&, const _meta_cell* const );
+	typedef bool (*_pfn_pack_to_left_neure)(const _pack_t&&);
+	typedef bool (*_pfn_pack_to_right_neure)(const _pack_t&&, const _meta_cell* const );
 
 	struct _meta_id{
 		_id_t id;
@@ -60,10 +60,10 @@ namespace sf
 	Te负责桥接Pin和Cell，当一个Cell里有多个子Cell时，且父Cell的某个输入型Pin需要转发包给多个子Cell的输入型Pin时，
 	Te就负责转发的逻辑。对于输出型的Pin转发时也是同样道理。这样，至少在数据汇合和分流时可以做统一操作。
 	*/
-	struct _meta_te : public _meta_id{
+	struct _meta_neure : public _meta_id{
 		_i_rawdata_builder* _rawdata_builder;
-		_pfn_pack_to_left_te _to_left_te;
-		_pfn_pack_to_right_te _to_right_te;
+		_pfn_pack_to_left_neure _to_in_neure;
+		_pfn_pack_to_right_neure _to_out_neure;
 	};
 
 	//path meta data struct
@@ -79,6 +79,24 @@ namespace sf
 		_id_t _path_id;
 	};
 	typedef std::unique_ptr<_meta_pack> _pack_t;
+
+    /*---------------------------------------------------------------------------------*/
+
+    typedef std::shared_ptr<_meta_neure> _neure_t;
+
+    class nenre : public _meta_neure{
+    public:
+        
+    };
+
+    class axon{
+
+        /* */
+        enum  signal{data_in};
+        data_pack_builder& get_data_pack_builder();
+        void push(data_pack&& _data_pack);
+    };
+
 
 
 }

@@ -1,0 +1,65 @@
+# depslib dependency file v1.0
+1479900140 source:e:\works\kicsy\toptree\main.cpp
+	<cassert>
+	<istream>
+	"FreeQueue.h"
+	"SyncDeque.h"
+	"Thread_Pool.h"
+	"Threads.h"
+
+1479204237 e:\works\kicsy\toptree\freequeue.h
+	<functional>
+	<deque>
+	<queue>
+	<mutex>
+	<atomic>
+	<memory>
+
+1479560825 e:\works\kicsy\toptree\lockqueue.h
+	<mutex>
+	<queue>
+	<condition_variable>
+	<memory>
+
+1479900061 e:\works\kicsy\toptree\thread_pool.h
+	<thread>
+	<vector>
+	<functional>
+	<atomic>
+	<memory>
+	<future>
+	<type_traits>
+	"SyncDeque.h"
+
+1479814457 e:\works\kicsy\toptree\stealing_queue.h
+	<functional>
+	<deque>
+	<queue>
+	<mutex>
+	<atomic>
+
+1479617843 e:\works\kicsy\toptree\threads.h
+	<cassert>
+	<istream>
+	<iostream>
+	<vector>
+	<thread>
+	<string>
+	<memory>
+	<assert.h>
+	<iostream>
+	<stdlib.h>
+	<stdio.h>
+	<functional>
+	<future>
+	<type_traits>
+	<sstream>
+	"stealing_queue.h"
+	"Thread_Pool.h"
+
+1479814457 e:\works\kicsy\toptree\syncdeque.h
+	<mutex>
+	<queue>
+	<condition_variable>
+	<memory>
+
