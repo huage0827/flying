@@ -14,6 +14,7 @@
 
 #ifndef ELEMENT_H_INCLUDED
 #define ELEMENT_H_INCLUDED
+#include <mutex>
 #include "core.h"
 #include "pack_pool.h"
 
@@ -32,6 +33,7 @@ namespace sf
     class data_context;
     class actuator;
     class neure;
+    class neure_builder;
     class actuator;
 
     typedef std::function< void(data_context &, const axon &, const data_pack & )> trigger_action;
@@ -61,7 +63,9 @@ namespace sf
     public:
 
         void walk_axon(_meta_axon_type _type, const walk_axon_function &_func);
-
+        unsigned int get_actuator_alloc_count(){
+            return 0;
+        }
     protected:
         friend class cluster;
     };
@@ -132,17 +136,42 @@ namespace sf
             master =         1 << 6,
             sages =            visible | query | transfer | performer | dispatcher | master,
         };
+        enum status_t{
+            original,
+            initialize,
+            running,
+            releasing,
+            finish,
+            fail
+        };
         cluster(const cluster&) = delete;
         cluster(const cluster&&) = delete;
         cluster& operator=(const cluster&) = delete;
         cluster(unsigned int actuator_max_count = std::thread::hardware_concurrency() + 1,
             ability_t ability = ability_t::anonymous):
-        _actuator_max_count(actuator_max_count),_ability(ability),_actuator_alloc_count(0){
+        _actuator_max_count(actuator_max_count),_ability(ability){
         }
 
-        void run(const std::vector<spore> &_spores){
-            init_pool();
+        bool run(const std::vector<spore> &_spores){
+            std::lock_guard<std::mutex> lk(_lock_operate);
+            if(_status != status_t::original)
+                return false;
+            _status = status_t::initialize;
+            init_neure_builder();
+            //scanning
+            _actuator_alloc_count = 0;
+            std::for_each(_spores.begin(), _spores.end(), [&](spore &_spore){
+                _actuator_alloc_count += _spore.get_actuator_alloc_count();
+                
+                //distribute  the neure builder
 
+            });
+            init_pool();
+            if(_actuator_max_count - _actuator_alloc_count < 1){
+                _status = status_t::fail;
+                return false;
+            }
+            return true;
         }
     protected:
         void pack_action(data_pack& _pack){
@@ -151,6 +180,13 @@ namespace sf
 
         data_pack&& fill_empty_pack(){
             std::move(data_pack());
+        }
+
+        void init_neure_builder(){
+            std::call_once(_init_neure_builder_flag, [&](){
+                _p_neure_builder = std::make_shared<neure_builder>();
+            });
+
         }
 
         void init_pool(){
@@ -166,12 +202,16 @@ namespace sf
             });
         }
     protected:
-        const unsigned int _actuator_max_count;
-        const ability_t _ability;
-        unsigned int _actuator_alloc_count;
+        const unsigned int _actuator_max_count{0};
+        const ability_t _ability{ability_t::anonymous};
+        unsigned int _actuator_alloc_count{0};
 
         std::unique_ptr<pack_pool<data_pack>> _p_pool;
+        std::shared_ptr<neure_builder> _p_neure_builder;
         std::once_flag _init_pool_flag;
+        std::once_flag _init_neure_builder_flag;
+        std::mutex _lock_operate;
+        status_t _status{status_t::original};
     };
 
 }
