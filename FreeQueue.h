@@ -1,3 +1,16 @@
+/*!
+ * \file FreeQueue.h
+ * \date 2016/12/06 18:05
+ *
+ * \author kicsy
+ * Contact: lmj07luck@126.com
+ *
+ * \brief 
+ *
+ * TODO: A lock-free queue with helping @seed <<C++ Concurrency in Action>>
+ *
+ * \note
+*/
 #ifndef FREEQUEUE_H_INCLUDED
 #define FREEQUEUE_H_INCLUDED
 
@@ -9,6 +22,7 @@
 #include <memory>
 
 //A lock-free queue with helping
+
 template<typename T>
 class free_queue
 {

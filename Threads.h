@@ -1,3 +1,17 @@
+/*!
+ * \file Threads.h
+ * \date 2016/12/06 18:05
+ *
+ * \author kicsy
+ * Contact: lmj07luck@126.com
+ *
+ * \brief 
+ *
+ * TODO: thread demo
+ *
+ * \note
+*/
+
 // *** ADDED BY HEADER FIXUP ***
 #include <cassert>
 #include <istream>

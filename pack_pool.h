@@ -1,3 +1,17 @@
+/*!
+ * \file pack_pool.h
+ * \date 2016/12/06 18:05
+ *
+ * \author kicsy
+ * Contact: lmj07luck@126.com
+ *
+ * \brief 
+ *
+ * TODO: a thread pool that deal the data pack 
+ *
+ * \note
+*/
+
 #ifndef THREAD_POOL_H_INCLUDED
 #define THREAD_POOL_H_INCLUDED
 #include <thread>
@@ -27,6 +41,8 @@ namespace fs {
         std::vector<std::thread> _threads;
         unsigned int const _base_thread_count;
         std::atomic_uint _finish_count{0};
+        std::once_flag _init_flag;
+        bool _is_init{false};
         void worker_thread(){
             do{
                 pack_t pack;
@@ -44,19 +60,25 @@ namespace fs {
             _action(_a),_fill(_f),_base_thread_count(th_count),_pack_queue(max_queue_size){
                 if(!_action || !_fill)
                     throw;
-                try{
-                    for (unsigned i = 0; i < _base_thread_count; ++i)
-                        _threads.push_back(std::thread(&thread_group::worker_thread, this));
-                }
-                catch (...){
-                    throw;
-                }
         }
         ~thread_group(){
             join();
         }
 
+        void init(){
+            _is_init = true;
+            try{
+                for (unsigned i = 0; i < _base_thread_count; ++i)
+                    _threads.push_back(std::thread(&thread_group::worker_thread, this));
+            }
+            catch (...){
+                throw;
+            }
+        }
+
         void submit(pack_t&& _pack){
+            if(!_is_init)
+                std::call_once(_init_flag, std::bind(&thread_group<pack_t>::init, this));
             _pack_queue.push(std::move(_pack), true);
         }
 
@@ -86,7 +108,7 @@ namespace fs {
         enum {GROUP_ID_MAKS = 0x000000FF, GROUP_ID_OVERFLOW_MAKS = ~GROUP_ID_MAKS};
         typedef thread_group<pack_t> thread_group_t;
         typedef std::unique_ptr<thread_group_t> p_thread_group_t;
-        pack_pool(func_pack_action &_a, func_pack_fill &_f, unsigned int base_thread_count = std::thread::hardware_concurrency() + 1, unsigned int base_queue_max_size = 0):
+        pack_pool(func_pack_action &_a, func_pack_fill &_f, unsigned int base_thread_count = std::thread::hardware_concurrency() + 2, unsigned int base_queue_max_size = 0):
         _action(_a),_fill(_f){
             if(base_thread_count > 0){
                 _group_last_id = 0;

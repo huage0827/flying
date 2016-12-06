@@ -1,3 +1,17 @@
+/*!
+ * \file sync_deque.h
+ * \date 2016/12/06 18:05
+ *
+ * \author kicsy
+ * Contact: lmj07luck@126.com
+ *
+ * \brief 
+ *
+ * TODO: a sync deque using lock
+ *
+ * \note
+*/
+
 #ifndef SYNCQUEUE_H_INCLUDED
 #define SYNCQUEUE_H_INCLUDED
 

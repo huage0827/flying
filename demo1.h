@@ -1,119 +1,30 @@
+/*!
+ * \file demo1.h
+ * \date 2016/12/06 18:05
+ *
+ * \author kicsy
+ * Contact: lmj07luck@126.com
+ *
+ * \brief 
+ *
+ * TODO: prototyping of flying spore 
+ *
+ * \note
+*/
+
 #ifndef DEMO_H_INCLUDED
 #define DEMO_H_INCLUDED
 #include "core.h"
-namespace fs{
+#include "element.h"
 
-    class FlyingSpore;
-    class SporeBuilder;
-    class FormatBuilder;
-    class Runtime;
-    class CellContext;
-    class DataPackage;
+using namespace fs;
 
-
-
-    typedef std::function< void(data_context &, const axon &, const data_pack & )> trigger_action;
-	enum visibility {}；
-
-    class cluster;
-    class trigger{
-    public:
-        enum trigger_type{fixed, can_replace};
-    };
-    class data_format_builder;
-    class data_format;
-    //数值定位符号，类似于: fileInfo/state这样的路径
-    class data_format_path;
-    class data_pack_builder;
-    class spore;
-    class spore_builder;
-    class cell;
-    class data_context;
-    class actuator;
-
-	class data_format_builder {
-
-		data_format&& to_data_format();
-	};
-
-	class data_pack_builder {
-		data_pack&& to_data_pack();
-	};
-
-    class data_pack
-    {
-    public:
-        enum signal{before_changed,  after_changed};
-    };
-
-
-    class data_context : public data_pack{
-
-    };
-
-    class spore_builder{
-     /*
-        通过add_trigger的方式添加处理机制（trigger），一个trigger包括：
-        1. handel, 用于描述触发这个trigger的来源
-        2. signal, 描述这个源的什么信号会导致触发
-        3. function, 具体的处理执行函数
-        
-        add_trigger 是一个重载（模板？）函数，通过handel和signal的类型可以决定function的类型
-    */
-        void add_trigger(trigger_type _type, const trigger_name _name,  trigger&& _trigger, trigger_action&& _action);
-
-		spore&& to_spore();
-    };
-
-
-    class axon
-    {
-        enum  signal{data_in};
-
-        data_pack_builder& get_data_pack_builder();
-        void push(data_pack&& _data_pack);
-    };
-
-    class axon_builder{
-
-        void add_trigger(trigger_type _type,  trigger&& _trigger, trigger_action&& _action){
-
-        }
-
-        void add_trigger(trigger_type _type,  axon::signal _signal, trigger_action&& _action){
-            add_trigger(_type, trigger(&this, _signal), std::move(_action));
-        }
-
-		axon&& to_axon();
-    };
-
-    class trigger{
-    public:
-        /*for data_pack*/
-        trigger(const data_pack& _data_pack, data_format_path&& _path, data_pack::signal _signal);
-        /*for axon_builder*/
-        trigger(const axon_builder& _axon_builder, axon::signal _signal);
-        /*for axon*/
-        trigger(const axon& _axon, axon::signal _signal);
-
-    };
-
-
-
-    //为root spore 添加环境变量
-    struct AVCode;
-    struct av_context{
-        AVCode code;
-    };
-    struct AVFrame;
-
-}
-
-namespace myspore{
-
-
-}
-
+//为root spore 添加环境变量
+struct AVCode;
+struct av_context{
+    AVCode code;
+};
+struct AVFrame;
 
 int __main(){
 
@@ -123,7 +34,7 @@ int __main(){
 
     cluster _cluster;
     //作为一个开放的Nest，最多32个执行器，具备全功能执行能力，可被发现、可被查询、可中转查询、可接受任务、可分派任务、可接受主控权、可转移主控权、可隐身访问
-    Runtime rt(32, AS_FULL_FUNCTION);
+    Runtime rt(32, cluster::ability_t::sages);
     _cluster.publish(rt, "127.0.0.1", 6101/*链路端口*/, 6201/*业务端口*/ );
     //或者作为一个集群的受控Nest，接收集群配置的spore定义文件内的任务
     Runtime rt0;//可支持的运行时环境，默认为空，即是隐身的Nest，不能和其他的Nest链接，可访问该配置文件定义的环境内容

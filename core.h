@@ -1,3 +1,17 @@
+/*!
+ * \file core.h
+ * \date 2016/12/06 18:05
+ *
+ * \author kicsy
+ * Contact: lmj07luck@126.com
+ *
+ * \brief 
+ *
+ * TODO: prototype of flying spore 
+ *
+ * \note
+*/
+
 #ifndef CORE_H_INCLUDED
 #define CORE_H_INCLUDED
 #include <memory>
@@ -48,7 +62,7 @@ namespace sf
 	};
 
 	//axon meta data struct
-	enum _meta_axon_type{IN, OUT};
+	enum _meta_axon_type{UNKNOWN,  IN, OUT};
 	struct _meta_axon : public _meta_id{
 		_id_t _cell_id;
 		_meta_axon_type _type;
