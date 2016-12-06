@@ -13,6 +13,7 @@ namespace fs{
 
 
     typedef std::function< void(data_context &, const axon &, const data_pack & )> trigger_action;
+	enum visibility {}；
 
     class cluster;
     class trigger{
@@ -29,6 +30,15 @@ namespace fs{
     class cell;
     class data_context;
     class actuator;
+
+	class data_format_builder {
+
+		data_format&& to_data_format();
+	};
+
+	class data_pack_builder {
+		data_pack&& to_data_pack();
+	};
 
     class data_pack
     {
@@ -51,6 +61,8 @@ namespace fs{
         add_trigger 是一个重载（模板？）函数，通过handel和signal的类型可以决定function的类型
     */
         void add_trigger(trigger_type _type, const trigger_name _name,  trigger&& _trigger, trigger_action&& _action);
+
+		spore&& to_spore();
     };
 
 
@@ -71,6 +83,8 @@ namespace fs{
         void add_trigger(trigger_type _type,  axon::signal _signal, trigger_action&& _action){
             add_trigger(_type, trigger(&this, _signal), std::move(_action));
         }
+
+		axon&& to_axon();
     };
 
     class trigger{
@@ -128,7 +142,7 @@ int __main(){
     自定义类型的话，在传递过程中可能类型会丢失，在使用时需做显示类型转，不是类型安全的操作方式
     */
     data_format df_base = data_format_builder("df_my_spore_evn", "{filename:string; duration:unsigned int; postion: unsigned int; size{width:int; height:int;}; state:int}").to_data_format();
-    data_format df_av = data_format_builder<av_context>("df_file_info").to_data_format();
+    data_format df_av = data_format_builder<av_context>("df_av_info").to_data_format();
     data_format df_avFrame = data_format_builder<AVFrame>().to_data_format();
     data_format df_cmd = data_format_builder("{cmdCode:int;seekPos:int(*); }").to_data_format();
     //注册到格式定义系统，不是必须的
@@ -263,11 +277,9 @@ int __main(){
     至此，我们通过spore_builder构造了一个spore，这个spore是通过“装配”而来的，它由多个外部赋予的零配件组装而成。你会发现，它可以作为一个严格意义上的“类”，
     它被封装到一个不可修改的spore实体，它的“数据”使用context来承载，它的外部接口是每个axon，它的操作就是每个axon上的trigger的执行体，它的axon可以被标示
     为“可替换”，由于所有spore实体只有一个类型（就是spore），它天生就是多态。
-    唯一和纯粹类不一样的是它没有类成员变量，这样内部数据操作都依赖于context，而context默认都是原子同步操作，开销比较大。
+    唯一和纯粹类不一样的是它没有类成员变量，这样内部数据操作都依赖于context，而context默认都是原子操作，开销比较大。
     解决办法是直接继承spore实现新的spore类，但仍然通过spore_builder来构造结构。
     */
-
-
 
     /*
     下面是解包和渲染的spore定义，它俩单独放在一个spore里，是因为解包后有可能有多个流，而每个流我们都需要两个单独的执行器来解码和渲染，
@@ -278,15 +290,22 @@ int __main(){
 
     public:
         stream_spore(){
-            auto act_decode = alloc_actuator(1, "act_decode");
-            auto act_decode = alloc_actuator(1, "act_render");
+			//添加环境变量
+			add("AVInfo", df_av);
+
+			actuator act_decode(1, "act_decode");
+			actuator act_render(1, "act_render");
 
         }
     }
 
+	//从builder生成spore
+	spore _root = b_root.to_spore();
+	stream_spore _stream_spore;
+	_stream_spore.context["AVInfo"].sync_by(_root.context["AVInfo"]);
 
     //执行
-    _cluster.run(b_root);
+	_cluster.run({_root, _stream_spore});
 }
 
 #endif // DEMO_H_INCLUDED
