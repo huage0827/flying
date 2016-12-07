@@ -7,8 +7,10 @@
  *
  * \brief 
  *
- * TODO: prototyping of flying spore 
- *
+ * 本文档是"flying spore" 原型设计草案的一部分，它站在使用者的角度，试图通过描述一个完整的流程来说明需求。
+* 假设场景是视频解码与播放，包含静态和动态创建spore。
+ * 
+ *（~~~最好能让使用者脱离C++的语法，自创语义，OMG~，那会看起来像JavaScript~~~~）
  * \note
 */
 
@@ -39,7 +41,7 @@ int __main(){
     //或者作为一个集群的受控Nest，接收集群配置的spore定义文件内的任务
     Runtime rt0;//可支持的运行时环境，默认为空，即是隐身的Nest，不能和其他的Nest链接，可访问该配置文件定义的环境内容
     _cluster.join(rt0, "https://github.com/kicsy/flying/demo/publish/process/Video_processing.fspd");
-    //或者作为一个扩展的Nest，加入到另一个Nest的活动中
+    //或者作为一个扩展的cluster，加入到另一个cluster的活动中
     _cluster.join(rt, "127.0.0.1"/*另一Nest的地址*/, 6102/*链路端口*/, 6202/*业务端口*/ );
 
     //定义一个 spore builder，指定基类
@@ -52,10 +54,10 @@ int __main(){
     标准类型的条目通过名称访问(底层可能的话需要映射成ID来访问这样快些)
     自定义类型的话，在传递过程中可能类型会丢失，在使用时需做显示类型转，不是类型安全的操作方式
     */
-    data_format df_base = data_format_builder("df_my_spore_evn", "{filename:string; duration:unsigned int; postion: unsigned int; size{width:int; height:int;}; state:int}").to_data_format();
-    data_format df_av = data_format_builder<av_context>("df_av_info").to_data_format();
-    data_format df_avFrame = data_format_builder<AVFrame>().to_data_format();
-    data_format df_cmd = data_format_builder("{cmdCode:int;seekPos:int(*); }").to_data_format();
+    p_data_format_t df_base = data_format_builder<>("df_my_spore_evn", "{filename:string; duration:unsigned int; postion: unsigned int; size{width:int; height:int;}; state:int}").to_data_format();
+    p_data_format_t df_av = data_format_builder<av_context>("df_av_info").to_data_format();
+    p_data_format_t df_avFrame = data_format_builder<AVFrame>().to_data_format();
+    p_data_format_t df_cmd = data_format_builder<>("{cmdCode:int;seekPos:int(*); }").to_data_format();
     //注册到格式定义系统，不是必须的
     b_root.reg(df_base);
 

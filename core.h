@@ -7,7 +7,7 @@
  *
  * \brief 
  *
- * TODO: prototype of flying spore 
+ * 本文档是"flying spore" 原型设计草案的一部分，它描述了数据层的结构定义。主要考虑的是如何提供一个工整的结构来支持函数式编程的API。
  *
  * \note
 */
