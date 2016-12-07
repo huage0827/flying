@@ -156,8 +156,9 @@ namespace sf
         3. function, 具体的处理执行函数
         
         add_trigger 是一个重载（模板？）函数，通过handel和signal的类型可以决定function的类型
+        下面这个原型有点复杂，参数太多了？？
     */
-        void add_trigger(trigger_type _type, const trigger_name _name,  trigger&& _trigger, trigger_action&& _action);
+        void add_trigger(trigger_type _type, const std::string _name,  trigger&& _trigger, trigger_action&& _action);
 
 		spore&& to_spore();
     protected:
