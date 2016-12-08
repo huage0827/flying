@@ -86,7 +86,7 @@ int __main(){
     _b_axon.set_type(_meta_axon_type::OUT);
     _b_axon.set_data_format(data_format_builder("{state:int; msg:string;}").to_data_format());
     //设置axon的处理机制，需要对这个处理进行描述
-    _b_axon.add_trigger(trigger::trigger_type::fixed,
+    _b_axon.add_trigger(
         trigger(b_root.context(), data_format_path("fileInfo/state"), data_pack::signal::after_changed),
          //设置axon输出时的处理动作
         [](data_context &context, const axon &_axon, const data_pack &_in_pack){
@@ -105,7 +105,7 @@ int __main(){
     _b_axon.reset();
     _b_axon.set_type(_meta_axon_type::IN);
     _b_axon.set_data_format(data_format_builder("{filename:string;}").to_data_format());
-    _b_axon.add_trigger(trigger::trigger_type::fixed,
+    _b_axon.add_trigger(
         axon::signal::data_in,
         [](data_context &context, const axon &_axon, const data_pack &_in_pack){
             //这里_in_pack是从当前的axon来数据（由axon::signal::data_in信号触发）
@@ -138,7 +138,7 @@ int __main(){
     axon _axon = b_root.add("in_control", _b_axon.to_axon());
 
     //这里将这个输入axon的执行体挂在spore上
-    b_root.add_trigger(trigger::trigger_type::fixed,
+    b_root.add_trigger(
         trigger(_axon, axon::signal::data_in),
         [&](data_context &context, const axon &_axon, const data_pack &_in_pack){
             //这里通过命令码控制解码器
@@ -221,4 +221,32 @@ int __main(){
 	_cluster.run({_root, _stream_spore});
 }
 
+int __main2(){
+
+    //一种可能的spore链接路径
+    auto _sps = 
+        spore(auto [](std::string  &str){
+        return str;
+        }) >>
+       spore(auto [](std::string  &str){
+                return (int)100;
+        }) >> 
+        spore(auto [](int nvalue){
+                return std::string("");
+        }) >>  //同时输出给两个spore
+       (
+       spore(auto [](std::string  &str){
+                return draw_info_subclass1();
+        }) +
+        spore(auto [](std::string  &str){
+                return draw_info_subclass2();
+        }) 
+        ) >> //上面两个spore都输出到同一个spore
+        spore(auto [](draw_info  &info){
+            //draw to screen
+            return true;
+        }) ;
+        cluster _cluster;
+        _cluster.run(_sps);
+}
 #endif // DEMO_H_INCLUDED

@@ -151,14 +151,10 @@ namespace sf
         }
      /*
         通过add_trigger的方式添加处理机制（trigger），一个trigger包括：
-        1. handel, 用于描述触发这个trigger的来源
-        2. signal, 描述这个源的什么信号会导致触发
-        3. function, 具体的处理执行函数
-        
-        add_trigger 是一个重载（模板？）函数，通过handel和signal的类型可以决定function的类型
-        下面这个原型有点复杂，参数太多了？？
-    */
-        void add_trigger(trigger_type _type, const std::string _name,  trigger&& _trigger, trigger_action&& _action);
+        1._trigger, trigger
+        2._action, 具体的处理执行函数
+     */
+        void add_trigger(trigger&& _trigger, trigger_action&& _action);
 
 		spore&& to_spore();
     protected:
@@ -206,12 +202,12 @@ namespace sf
 
         void reset();
 
-        void add_trigger(trigger_type _type,  trigger&& _trigger, trigger_action&& _action){
+        void add_trigger(trigger&& _trigger, trigger_action&& _action){
 
         }
 
-        void add_trigger(trigger_type _type,  axon::signal _signal, trigger_action&& _action){
-            add_trigger(_type, trigger(&this, _signal), std::move(_action));
+        void add_trigger(axon::signal _signal, trigger_action&& _action){
+            add_trigger(trigger(&this, _signal), std::move(_action));
         }
 
 		p_axon_t&& to_axon();
@@ -223,13 +219,12 @@ namespace sf
 
     class trigger{
     public:
-    public:
-        enum trigger_type{fixed, can_replace};
-
+        /*
+        1. handel, 用于描述触发这个trigger的来源
+        2. signal, 描述这个源的什么信号会导致触发
+        */
         /*for data_pack*/
         trigger(const data_pack& _data_pack, data_format_path&& _path, data_pack::signal _signal);
-        /*for axon_builder*/
-        trigger(const axon_builder& _axon_builder, axon::signal _signal);
         /*for axon*/
         trigger(const axon& _axon, axon::signal _signal);
 
