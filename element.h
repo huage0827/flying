@@ -44,6 +44,8 @@ namespace sf
     class neure;
     class neure_builder;
 
+    
+
     typedef std::shared_ptr<data_format> p_data_format_t;
     typedef std::shared_ptr<data_format_builder> p_data_format_builder_t;
 
@@ -62,7 +64,7 @@ namespace sf
     typedef std::function< void(data_context &, const axon &, const data_pack & )> trigger_action;
 
     class data_format{
-
+    public:
     };
 
     template<typename _struct_t = std::string>
@@ -74,10 +76,18 @@ namespace sf
     typedef data_format_builder<std::string> format_string;
 
     class data_value{
-
+    public:
+        bool as_bool();
+        char as_char();
+        unsigned char as_byte();
+        short as_short();
+        long as_long();
+        long long as_longlong();
+        std::string as_string();
     };
 
 	class data_pack_builder {
+    public:
 		data_pack&& to_data_pack();
 	};
 
@@ -87,6 +97,7 @@ namespace sf
         enum signal{before_changed,  after_changed};
 
         const data_value& operator[](std::string _path){
+            //mapping path to index and find it
             return data_value();
         }
 
@@ -101,66 +112,10 @@ namespace sf
 
 
     class data_context : public data_pack{
-
-    };
-
-    typedef std::function< bool(const axon & )> walk_axon_function;
-    class spore{
     public:
-
-        void walk_axon(_meta_axon_type _type, const walk_axon_function &_func);
-        unsigned int get_actuator_alloc_count(){
-            return 0;
-        }
     protected:
-        friend class cluster;
-        friend class spore_builder;
-        cluster *_p_cluster{nullptr};
+        p_spore_t _owner;
     };
-
-    class spore_builder{
-    public:
-
-        void reset();
-
-        p_data_format_t&& add(char* _format_name, const p_data_format_t& _data_format){
-            if(_format_name)
-                return add(std::string(_format_name), _data_format);
-            return nullptr;
-        }
-        p_data_format_t&& add(std::string _format_name, const p_data_format_t& _data_format){
-
-            return reg(_data_format);
-        }
-
-        p_axon_t&& add(char* _axon_name, const p_axon_t& _axon){
-            if(_axon_name)
-                return add(std::string(_axon_name), _axon);
-            return nullptr;
-        }
-        p_axon_t&& add(std::string _axon_name, const p_axon_t& _axon){
-
-            return std::move(p_axon_t(_axon));
-        }
-
-        p_data_format_t&& reg(const p_data_format_t& _data_format){
-            
-            //reg ...
-            
-            return std::move(p_data_format_t(_data_format));
-        }
-     /*
-        通过add_trigger的方式添加处理机制（trigger），一个trigger包括：
-        1._trigger, trigger
-        2._action, 具体的处理执行函数
-     */
-        void add_trigger(trigger&& _trigger, trigger_action&& _action);
-
-		spore&& to_spore();
-    protected:
-
-    };
-
 
     class axon
     {
@@ -210,11 +165,94 @@ namespace sf
             add_trigger(trigger(&this, _signal), std::move(_action));
         }
 
-		p_axon_t&& to_axon();
+        p_axon_t&& to_axon();
     protected:
         _meta_axon_type _type{UNKNOWN};
         p_data_format_t _data_format{nullptr};
         actuator _actuator;
+    };
+
+    typedef std::function< bool(const p_axon_t & )> walk_axon_function;
+    class spore{
+    public:
+        spore(){
+        }
+        void walk_axon(_meta_axon_type _type, const walk_axon_function &_func){
+            if(!_func) return;
+            for (std::vector<p_axon_t>::const_iterator ite = _axon_array.begin(); ite != _axon_array.end(); ite ++){
+                if(!(_func)(*ite))
+                    return;
+            }
+        }
+        unsigned int get_actuator_alloc_count(){
+            return 0;
+        }
+    protected:
+        friend class cluster;
+        friend class spore_builder;
+        cluster *_p_cluster{nullptr};
+        std::vector<p_axon_t> _axon_array;
+        //p_axon_t _axon_array{nullptr};//=shared_ptr<axon>(new axon[size], default_delete<axon[]>()
+        
+    };
+
+    class spore_builder{
+    public:
+
+        void reset();
+
+        data_format_builder& add(char* _format_name, data_format_builder& _data_format_builder){
+            if(_format_name)
+                return add(std::string(_format_name), _data_format);
+            return _data_format_builder;
+        }
+        data_format_builder& add(std::string _format_name, data_format_builder& _data_format_builder){
+            {
+                std::lock_guard<std::mutex> lk(_lock_builder);
+                if(std::find(_context_array.begin(), _context_array.end(), _format_name) != _context_array.end()){
+                    //MSG...
+                    return _data_format_builder;
+                }
+                _context_array[_format_name] = _data_format_builder;
+            }
+            return reg(_data_format_builder);
+        }
+
+        axon_builder& add(char* _axon_name, axon_builder& _axon_builder){
+            if(_axon_name)
+                return add(std::string(_axon_name), _axon_builder);
+            return _axon_builder;
+        }
+        axon_builder& add(std::string _axon_name, axon_builder& _axon_builder){
+            {
+                std::lock_guard<std::mutex> lk(_lock_builder);
+                if(std::find(_axon_array.begin(), _axon_array.end(), _axon_name) != _axon_array.end()){
+                    //MSG...
+                    return _axon_builder;
+                }
+                _axon_array[_axon_name] = _axon_builder;
+            }
+            return _axon_builder;
+        }
+
+        data_format_builder& reg(data_format_builder& _data_format_builder){
+            
+            //reg ...
+            
+            return _data_format_builder;
+        }
+     /*
+        通过add_trigger的方式添加处理机制（trigger），一个trigger包括：
+        1._trigger, trigger
+        2._action, 具体的处理执行函数
+     */
+        void add_trigger(trigger& _trigger, trigger_action& _action);
+
+		spore&& to_spore();
+    protected:
+        std::mutex _lock_builder;
+        std::map<std::string, data_format_builder> _context_array;
+        std::map<std::string, axon_builder> _axon_array;
     };
 
     class trigger{
