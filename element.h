@@ -33,6 +33,10 @@ namespace sf
     class data_context;
     class data_pack_builder;
 
+    class axon_path;
+    class axon_path_builder;
+    class axon_chain_builder;
+
     class axon;
     class axon_builder;
 
@@ -52,10 +56,19 @@ namespace sf
     typedef std::unique_ptr<data_pack> p_data_pack_t;
     typedef std::unique_ptr<data_pack_builder> p_data_pack_builder_t;
 
+    typedef std::unique_ptr<axon_path> p_axon_path_t;
+
+
     typedef std::shared_ptr<axon> p_axon_t;
+    typedef std::shared_ptr<axon_builder> p_axon_builder_t;
+
     typedef std::shared_ptr<spore> p_spore_t;
     typedef std::shared_ptr<spore_builder> p_spore_builder_t;
+
     typedef std::shared_ptr<data_context> p_data_context_t;
+
+    typedef std::shared_ptr<actuator> p_actuator_t;
+
     typedef std::shared_ptr<neure> p_neure_t;
     typedef std::shared_ptr<neure_builder> p_neure_builder_t;
 
@@ -117,6 +130,71 @@ namespace sf
         p_spore_t _owner;
     };
 
+    class axon_path_builder{
+    public:
+        
+        axon_path_builder(){
+        }
+
+        axon_path_builder(const std::vector<p_axon_builder_t> _axons){
+            std::vector<p_axon_builder_t> _ins;
+            std::vector<p_axon_builder_t> _outs;
+            for_each(_axons.begin(), _axons.end(), [&](p_axon_builder_t &_a){
+                if(_a->_type == IN_AXON)
+                    _ins.push_back(_a);
+                else if(_a->_type == OUT_AXON)
+                    _outs.push_back(_a);
+            });
+            for_each(_ins.begin(), _ins.end(), [&](p_axon_builder_t &_in){
+                for_each(_outs.begin(), _outs.end(), [&](p_axon_builder_t &_out){
+                    _in_out_pair.push_back(std::pair<p_axon_builder_t, p_axon_builder_t>(_in, _out));
+                });
+            });
+        }
+
+        p_axon_path_t&& to_axon_path(){
+            return std::move(p_axon_path_t());
+        }
+
+    protected:
+        std::vector<std::pair<p_axon_builder_t, p_axon_builder_t>> _in_out_pair;
+    };
+
+    class axon_chain_builder : public axon_path_builder{
+    public:
+
+        axon_chain_builder& operator<<(axon_builder &_other){
+            if(_other._type != _meta_axon_type::OUT_AXON){
+                //MSG... ERROR
+                
+            }
+            else{
+                p_axon_builder_t _in;
+                if(_in_out_pair.size() > 0){
+                    _in = _in_out_pair.front().first;
+                }
+                _in_out_pair.push_back(std::pair<p_axon_builder_t, p_axon_builder_t>(_in, _other));
+            }
+            return *this;
+        }
+
+        axon_chain_builder& operator>>(axon_builder &_other){
+            if(_other._type != _meta_axon_type::IN_AXON){
+                //MSG... ERROR
+
+            }
+            else{
+                p_axon_builder_t _in;
+                if(_in_out_pair.size() > 0){
+                    _out = _in_out_pair.front().second;
+                }
+                _in_out_pair.push_back(std::pair<p_axon_builder_t, p_axon_builder_t>(_other, _out));
+            }
+            return *this;
+        }
+
+    };
+
     class axon
     {
     public:
@@ -124,6 +202,8 @@ namespace sf
 
         data_pack_builder& get_data_pack_builder();
         void push(data_pack&& _data_pack);
+
+
     protected:
         friend class cluster;
         friend class spore;
@@ -135,41 +215,82 @@ namespace sf
     public:
 
         void set_type(_meta_axon_type _t){
+            std::lock_guard<std::mutex> lk(_lock_builder);
             _type = _t;
         }
         _meta_axon_type get_type(){
+            std::lock_guard<std::mutex> lk(_lock_builder);
             return _type;
         }
 
         void set_data_format(p_data_format_t _f){
+            std::lock_guard<std::mutex> lk(_lock_builder);
             _data_format = _f;
         }
         p_data_format_t get_data_format(){
+            std::lock_guard<std::mutex> lk(_lock_builder);
             return _data_format;
         }
 
-        void set_actuator(const actuator& _act){
+        void set_actuator(const p_actuator_t& _act){
+            std::lock_guard<std::mutex> lk(_lock_builder);
             _actuator = _act;
         }
         actuator&& get_actuator(){
+            std::lock_guard<std::mutex> lk(_lock_builder);
             return std::move(actuator(_actuator));
         }
 
-        void reset();
-
-        void add_trigger(trigger&& _trigger, trigger_action&& _action){
+        void reset(){
 
         }
 
-        void add_trigger(axon::signal _signal, trigger_action&& _action){
+        void add_trigger(const trigger& _trigger, trigger_action&& _action){
+            std::lock_guard<std::mutex> lk(_lock_builder);
+            _trigger_action[_trigger] = std::move(_action);
+        }
+
+        void add_trigger(const axon::signal _signal, trigger_action&& _action){
             add_trigger(trigger(&this, _signal), std::move(_action));
         }
 
-        p_axon_t&& to_axon();
+        p_axon_t&& to_axon(){
+            std::lock_guard<std::mutex> lk(_lock_builder);
+
+            return std::move(p_axon_t());
+        }
+
+        axon_path_builder&& connect(axon_builder &_other){
+            if((_type & _other._type) != _meta_axon_type::IN_OUT)
+            {
+             //MSG... ERROR
+                return axon_path_builder();
+            }
+            return axon_path_builder(*this, _other);
+        }
+
+        axon_path_builder operator<<(axon_builder &_other){
+            if(_type == _meta_axon_type::IN && _other._type == _meta_axon_type::OUT){
+                return axon_path_builder(*this, _other);
+            }
+            //MSG... ERROR
+            return axon_path_builder();
+        }
+
+        axon_path_builder operator>>(axon_builder &_other){
+            if(_type == _meta_axon_type::OUT && _other._type == _meta_axon_type::IN){
+                return axon_path_builder(*this, _other);
+            }
+            //MSG... ERROR
+            return axon_path_builder();
+        }
+
     protected:
+        std::mutex _lock_builder;
         _meta_axon_type _type{UNKNOWN};
         p_data_format_t _data_format{nullptr};
-        actuator _actuator;
+        p_actuator_t _actuator;
+        std::map<trigger, trigger_action> _trigger_action;
     };
 
     typedef std::function< bool(const p_axon_t & )> walk_axon_function;
@@ -227,7 +348,7 @@ namespace sf
             {
                 std::lock_guard<std::mutex> lk(_lock_builder);
                 if(std::find(_axon_array.begin(), _axon_array.end(), _axon_name) != _axon_array.end()){
-                    //MSG...
+                    //MSG... ERROR
                     return _axon_builder;
                 }
                 _axon_array[_axon_name] = _axon_builder;

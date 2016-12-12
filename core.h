@@ -62,7 +62,7 @@ namespace sf
 	};
 
 	//axon meta data struct
-	enum _meta_axon_type{UNKNOWN,  IN, OUT};
+	enum _meta_axon_type{UNKNOWN = 0, IN_AXON = 0xFFFF0000, OUT_AXON = 0x0000FFFF};
 	struct _meta_axon : public _meta_id{
 		_id_t _cell_id;
 		_meta_axon_type _type;
