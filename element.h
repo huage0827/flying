@@ -33,9 +33,8 @@ namespace sf
     class data_context;
     class data_pack_builder;
 
-    class axon_path;
-    class axon_path_builder;
-    class axon_chain_builder;
+    class chain;
+    class chain_builder;
 
     class axon;
     class axon_builder;
@@ -56,7 +55,8 @@ namespace sf
     typedef std::unique_ptr<data_pack> p_data_pack_t;
     typedef std::unique_ptr<data_pack_builder> p_data_pack_builder_t;
 
-    typedef std::unique_ptr<axon_path> p_axon_path_t;
+    typedef std::unique_ptr<chain> p_chain_t;
+    typedef std::shared_ptr<chain_builder> p_chain_builder_t;
 
 
     typedef std::shared_ptr<axon> p_axon_t;
@@ -130,70 +130,103 @@ namespace sf
         p_spore_t _owner;
     };
 
-    class axon_path_builder{
+    class chain_builder{
     public:
         
-        axon_path_builder(){
+        chain_builder():_is_valid(false){
         }
 
-        axon_path_builder(const std::vector<p_axon_builder_t> _axons){
-            std::vector<p_axon_builder_t> _ins;
-            std::vector<p_axon_builder_t> _outs;
-            for_each(_axons.begin(), _axons.end(), [&](p_axon_builder_t &_a){
-                if(_a->_type == IN_AXON)
-                    _ins.push_back(_a);
-                else if(_a->_type == OUT_AXON)
-                    _outs.push_back(_a);
-            });
-            for_each(_ins.begin(), _ins.end(), [&](p_axon_builder_t &_in){
-                for_each(_outs.begin(), _outs.end(), [&](p_axon_builder_t &_out){
-                    _in_out_pair.push_back(std::pair<p_axon_builder_t, p_axon_builder_t>(_in, _out));
-                });
-            });
+        chain_builder(p_axon_builder_t _a1, p_axon_builder_t _a2):_is_valid(false){
+            if(_a1->_type == ~_a2->_type){
+                //ÀàÐÍÆ¥ÅäÅÐ¶Ï
+                //...
+                //...
+                if(_a1->_type == _meta_axon_type::IN_AXON)
+                    _axon_in = _a1;
+                else
+                    _axon_out = _a1;
+                if(_a2->_type == _meta_axon_type::IN_AXON)
+                    _axon_in = _a2;
+                else
+                    _axon_out = _a2;
+            }
         }
 
-        p_axon_path_t&& to_axon_path(){
-            return std::move(p_axon_path_t());
+        p_chain_t&& to_chain(){
+            return std::move(p_chain_t());
+        }
+
+        bool is_valid(){
+            return _is_valid;
         }
 
     protected:
-        std::vector<std::pair<p_axon_builder_t, p_axon_builder_t>> _in_out_pair;
+        p_axon_builder_t _axon_in;
+        p_axon_builder_t _axon_out;
+        bool _is_valid;
     };
 
-    class axon_chain_builder : public axon_path_builder{
+    class matrix{
     public:
+        void matrix(){}
 
-        axon_chain_builder& operator<<(axon_builder &_other){
-            if(_other._type != _meta_axon_type::OUT_AXON){
-                //MSG... ERROR
-                
-            }
-            else{
-                p_axon_builder_t _in;
-                if(_in_out_pair.size() > 0){
-                    _in = _in_out_pair.front().first;
-                }
-                _in_out_pair.push_back(std::pair<p_axon_builder_t, p_axon_builder_t>(_in, _other));
-            }
-            return *this;
+        void matrix(axon_builder &_axon){
+            add({p_axon_builder_t(&_axon)});
+        }
+        void matrix(std::vector<p_axon_builder_t> &_axons){
+            add(_axons);
+        }
+        void matrix(std::vector<p_axon_builder_t> &&_axons){
+            add(std::move(_axons));
+        }
+        void matrix(std::vector<p_chain_builder_t> &_chains){
+            add(_chains);
+        }
+        void matrix(std::vector<p_chain_builder_t> &&_chains){
+            add(std::move(_chains));
         }
 
-        axon_chain_builder& operator>>(axon_builder &_other){
-            if(_other._type != _meta_axon_type::IN_AXON){
-                //MSG... ERROR
-
-            }
-            else{
-                p_axon_builder_t _in;
-                if(_in_out_pair.size() > 0){
-                    _out = _in_out_pair.front().second;
+        void add(std::vector<p_axon_builder_t> &_axons){
+            _meta_axon_type _t = _meta_axon_type::UNKNOWN;
+            for_each(_axons.begin(), _axons.end(),  [&](p_axon_builder_t &_axon){
+                if(_t != _meta_axon_type::UNKNOWN && _axon->_type != _t){
+                    _t = _meta_axon_type::UNKNOWN;
+                    break;
                 }
-                _in_out_pair.push_back(std::pair<p_axon_builder_t, p_axon_builder_t>(_other, _out));
-            }
-            return *this;
+                _t = _axon->_type;
+            });
+            if(_t == _meta_axon_type::IN_AXON)
+                _axons_in.push_back(_axons);
+            else if(_t == _meta_axon_type::OUT_AXON)
+                _axons_out.push_back(_axons);
+        }
+        void add(std::vector<p_axon_builder_t> &&_axons){
+            _meta_axon_type _t = _meta_axon_type::UNKNOWN;
+            for_each(_axons.begin(), _axons.end(),  [&](p_axon_builder_t &_axon){
+                if(_t != _meta_axon_type::UNKNOWN && _axon->_type != _t){
+                    _t = _meta_axon_type::UNKNOWN;
+                    break;
+                }
+                _t = _axon->_type;
+            });
+            if(_t == _meta_axon_type::IN_AXON)
+                _axons_in.emplace_back(_axons);
+            else if(_t == _meta_axon_type::OUT_AXON)
+                _axons_out.emplace_back(_axons);
+        }
+        void add(std::list<p_chain_builder_t> &_chains){
+            _chains.push_back(_chains);
+        }
+        void add(std::list<p_chain_builder_t> &&_chains){
+            _chains.emplace_back(_chains);
         }
 
+    protected:
+        std::list<std::vector<p_axon_builder_t>> _axons_in;
+        std::list<std::vector<p_axon_builder_t>> _axons_out;
+        std::list<p_chain_builder_t> _chains;
     };
+
 
     class axon
     {
@@ -260,29 +293,23 @@ namespace sf
             return std::move(p_axon_t());
         }
 
-        axon_path_builder&& connect(axon_builder &_other){
-            if((_type & _other._type) != _meta_axon_type::IN_OUT)
+        matrix&& connect(p_axon_builder_t &_other){
+            if(_type != ~_other->_type)
             {
              //MSG... ERROR
-                return axon_path_builder();
+                return std::move(matrix());
             }
-            return axon_path_builder(*this, _other);
+            if(_type == _meta_axon_type::IN_AXON)
+                return 
+            return std::move(matrix({std::make_shared<chain_builder>(shared_ptr<axon_builder>(this) , _other)}));
         }
 
-        axon_path_builder operator<<(axon_builder &_other){
-            if(_type == _meta_axon_type::IN && _other._type == _meta_axon_type::OUT){
-                return axon_path_builder(*this, _other);
-            }
-            //MSG... ERROR
-            return axon_path_builder();
+        matrix&& operator<<(p_axon_builder_t &_other){
+            return std::move(matrix(shared_ptr<axon_builder>(this)) << matrix(_other));
         }
 
-        axon_path_builder operator>>(axon_builder &_other){
-            if(_type == _meta_axon_type::OUT && _other._type == _meta_axon_type::IN){
-                return axon_path_builder(*this, _other);
-            }
-            //MSG... ERROR
-            return axon_path_builder();
+        matrix&& operator>>(p_axon_builder_t &_other){
+            return std::move(matrix(shared_ptr<axon_builder>(this)) >> matrix(_other));
         }
 
     protected:

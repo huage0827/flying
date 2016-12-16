@@ -223,6 +223,48 @@ int __main(){
 
 int __main2(){
 
+/************************************************************************/
+/* 
+axon，path，spore的连接方式：
+
+下面的spore仅有单输入axon和单输出axon
+
+axon_i >> axon_o                    =       (path)
+
+axon_i >> spore                   =       (path, axon_o)
+
+spore >> spore                  =       (axon_i, path, axon_o)
+
+spore >> axon_o                   =       (axon_i, path)
+
+path + path                       =       (path)  合并效果
+path * path                        =       (path)  连接效果
+
+axon_i + axon_i                 =        (axon_i + axon_i) 或效果
+axon_i * axon_i                 =        (axon_i * axon_i) 与效果
+
+spore + spore                    =       ((axon_i + axon_i), (axon_o + axon_o))或效果
+spore * spore                    =       ((axon_i * axon_i), (axon_o * axon_o))与效果
+
+axon_i + path                    =       (axon_i, path)
+path + axon_i                    =       (axon_i, path)
+
+path * axon_i                    =       (path) 连接效果，path的所有输出连接到axon_i，然后合并成一个path
+
+axon_o + path                   =       (path, axon_o)
+axon_o * path                   =        (path) 连接效果，axon_o 输出到path所有的axon_i，然后合并成一个path
+
+path + axon_o                   =       (path, axon_o)
+
+spore + path                  =       (axon_i, path, axon_o)
+path + spore                  =       (axon_i, path, axon_o)
+
+
+*/
+/************************************************************************/
+
+
+
     //一种可能的spore链接路径
     auto _sps = 
         spore(auto [](std::string  &str){
