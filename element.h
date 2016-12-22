@@ -20,6 +20,8 @@
 
 namespace sf
 {
+    
+    class virtual_t;
 
     class cluster;
     class trigger;
@@ -39,6 +41,9 @@ namespace sf
     class axon;
     class axon_builder;
 
+    class neure;
+    class neure_builder;
+
     class spore;
     class spore_builder;
 
@@ -48,6 +53,7 @@ namespace sf
     class neure_builder;
 
     
+    typedef std::shared_ptr<virtual_t> p_virtual_t;
 
     typedef std::shared_ptr<data_format> p_data_format_t;
     typedef std::shared_ptr<data_format_builder> p_data_format_builder_t;
@@ -62,6 +68,9 @@ namespace sf
     typedef std::shared_ptr<axon> p_axon_t;
     typedef std::shared_ptr<axon_builder> p_axon_builder_t;
 
+    typedef std::shared_ptr<neure> p_dendrite_t;
+    typedef std::shared_ptr<neure_builder> p_dendrite_builder_t;
+
     typedef std::shared_ptr<spore> p_spore_t;
     typedef std::shared_ptr<spore_builder> p_spore_builder_t;
 
@@ -75,6 +84,17 @@ namespace sf
     typedef std::unique_ptr<pack_pool<data_pack>> p_pool_t;
 
     typedef std::function< void(data_context &, const axon &, const data_pack & )> trigger_action;
+
+    class virtual_t{
+
+    };
+
+    template<class T> 
+    struct deleter{
+        inline void operator()(virtual_t* _p)  {
+            delete static_cast<T*>(_p);  
+        } 
+    };
 
     class data_format{
     public:
@@ -227,6 +247,71 @@ namespace sf
         std::list<p_chain_builder_t> _chains;
     };
 
+    class neure_builder{
+    public:
+        neure_builder(neure_type _t, const std::vector<p_neure_builder_t>& _ns):_type(_t){
+            std::for_each(_ns.begin(), _ns.end(), [&](p_neure_builder_t& _n){
+                _vector.push_back(std::shared_ptr<virtual_t>(reinterpret_cast<virtual_t>(_n.get()), deleter<neure_builder>()));
+            });
+        }
+
+        neure_builder(const std::vector<p_axon_builder_t>& _as):_type(neure_type::_list){
+            std::for_each(_as.begin(), _as.end(), [&](p_axon_builder_t& _a){
+                _vector.push_back(std::shared_ptr<virtual_t>(reinterpret_cast<virtual_t>(_a.get()), deleter<neure_builder>()));
+            });
+        }
+
+        neure_type get_type(){
+            return _type;
+        }
+
+        bool is_empty(){
+            return _vector.empty();
+        }
+
+    protected:
+        neure_type _type;
+        std::vector<p_virtual_t> _vector;
+    }
+
+    class connection
+    {
+
+    public:
+        
+        void connection(){
+
+        }
+        void connection(const connection& _c){
+
+        }
+        void connection(connection&& _c){
+        }
+        void connection(const spore_builder& _s):connection(p_spore_builder_t(&_s)){
+        }
+        
+        void connection(p_spore_builder_t  _p_s){
+        }
+        void connection(spore_builder&& _s) == delete;
+        void connection(const axon_builder& _a):connection(p_axon_builder_t(&_a)){
+
+        }
+        void connection(p_axon_builder_t _p_a){
+
+        }
+        void connection(axon_builder&& _a) == delete;
+
+        connection&& operator>>(const connection &_other){
+            return connection();
+        }
+
+    protected:
+        std::vector<chain_builder> _chains;
+        neure_builder _in_neure;
+        neure_builder _out_neure;
+    };
+
+
 
     class axon
     {
@@ -320,6 +405,13 @@ namespace sf
         std::map<trigger, trigger_action> _trigger_action;
     };
 
+    enum neure_type{_list, _of, _and};
+    class neure{
+    public:
+    };
+
+
+
     typedef std::function< bool(const p_axon_t & )> walk_axon_function;
     class spore{
     public:
@@ -380,7 +472,7 @@ namespace sf
                 }
                 _axon_array[_axon_name] = _axon_builder;
             }
-            return _axon_builder;
+            return _axon_array[_axon_name];
         }
 
         data_format_builder& reg(data_format_builder& _data_format_builder){
