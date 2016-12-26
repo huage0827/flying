@@ -337,30 +337,29 @@ namespace sf
                     _out_neure = std::make_shared<neure_builder>({_p_a});
             }
         }
+
         void matrix(axon_builder&& _a) == delete;
 
         matrix&& operator*(const matrix &_other){
-            matrix _m;
-            _m._chains.assign(_chains.begin(), _chains.end());
-            _m._chains.assign(_other.begin(), _other.end());
-            _m._in_neure = std::make_shared<neure_builder>(neure_type::_and, {_in_neure, _other._in_neure});
-            _m._out_neure = std::make_shared<neure_builder>(neure_type::_and, {_out_neure, _other._out_neure});
-            return std::move(_m);
+            return std::move(_union(_other, neure_type::_and));
         }
 
         matrix&& operator+(const matrix &_other){
-            matrix _m;
-            _m._chains.assign(_chains.begin(), _chains.end());
-            _m._chains.assign(_other.begin(), _other.end());
-            _m._in_neure = std::make_shared<neure_builder>(neure_type::_of, {_in_neure, _other._in_neure});
-            _m._out_neure = std::make_shared<neure_builder>(neure_type::_of, {_out_neure, _other._out_neure});
-            return std::move(_m);
+            return std::move(_union(_other, neure_type::_of));
         }
-
 
         matrix&& operator>>(const matrix &_other){
             //这里生成链，再把链封装成neure，追加的out axon里
             return matrix();
+        }
+    protected:
+        matrix&& _union(const matrix &_other, neure_type _type){
+            matrix _m;
+            _m._chains.assign(_chains.begin(), _chains.end());
+            _m._chains.assign(_other.begin(), _other.end());
+            _m._in_neure = std::make_shared<neure_builder>(_type, {_in_neure, _other._in_neure});
+            _m._out_neure = std::make_shared<neure_builder>(_type, {_out_neure, _other._out_neure});
+            return std::move(_m);
         }
 
     protected:
