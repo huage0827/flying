@@ -46,6 +46,7 @@ namespace sf
 
     class spore;
     class spore_builder;
+    class spore_odd;
 
     class actuator;
 
@@ -63,6 +64,8 @@ namespace sf
 
     typedef std::unique_ptr<chain> p_chain_t;
     typedef std::shared_ptr<chain_builder> p_chain_builder_t;
+    typedef std::list<p_chain_builder_t> chain_builder_list_t;
+    typedef std::shared_ptr<chain_builder_list_t> p_chain_builder_list_t;
 
 
     typedef std::shared_ptr<axon> p_axon_t;
@@ -70,6 +73,8 @@ namespace sf
 
     typedef std::shared_ptr<spore> p_spore_t;
     typedef std::shared_ptr<spore_builder> p_spore_builder_t;
+    typedef std::list<p_spore_builder_t> spore_builder_list_t;
+    typedef std::shared_ptr<spore_builder_list_t> p_spore_builder_list_t;
 
     typedef std::shared_ptr<data_context> p_data_context_t;
 
@@ -100,7 +105,13 @@ namespace sf
     template<typename _struct_t = std::string>
 	class data_format_builder {
 
-		p_data_format_t&& to_data_format();
+        static p_data_format_builder_t get_unknow(){
+            return p_data_format_builder_t();
+        }
+
+		p_data_format_t&& to_data_format(){
+            return std::move(p_data_format_t());
+        }
 	};
 
     typedef data_format_builder<std::string> format_string;
@@ -252,7 +263,7 @@ namespace sf
     /*
     neure 一组以确定方式聚合的axon或者子neure
     */
-    enum neure_type{_axon_list, _chain_list, _of, _and};
+    enum neure_type{_axon_list, _chain_list, _addition, _multiplication};
     class neure_builder{
     public:
         neure_builder(){
@@ -305,10 +316,10 @@ namespace sf
         void matrix(){
 
         }
-        void matrix(const matrix& _c):_chains(_c._chains),_in_neure(_c._in_neure),_out_neure(_c._out_neure){
+        void matrix(const matrix& _c):_p_spore_list(_c._p_spore_list),_in_neure(_c._in_neure),_out_neure(_c._out_neure){
         }
         void matrix(matrix&& _c):_in_neure(std::move(_c._in_neure)),_out_neure(std::move(_c._out_neure)){
-            std::swap(_chains, _c._vector);
+            std::swap(_p_spore_list, _c._p_spore_list);
         }
         void matrix(p_spore_builder_t  _p_s){
             if(_p_s){
@@ -341,29 +352,38 @@ namespace sf
         void matrix(axon_builder&& _a) == delete;
 
         matrix&& operator*(const matrix &_other){
-            return std::move(_union(_other, neure_type::_and));
+            return std::move(_union(_other, neure_type::_multiplication));
         }
 
         matrix&& operator+(const matrix &_other){
-            return std::move(_union(_other, neure_type::_of));
+            return std::move(_union(_other, neure_type::_addition));
         }
 
         matrix&& operator>>(const matrix &_other){
+            //_other 必须包含输入
+            if(!_other._in_neure || _other._in_neure->is_empty()){
+                //MSG...
+                return matrix();
+            }
             //这里生成链，再把链封装成neure，追加的out axon里
+            
             return matrix();
         }
     protected:
         matrix&& _union(const matrix &_other, neure_type _type){
             matrix _m;
-            _m._chains.assign(_chains.begin(), _chains.end());
-            _m._chains.assign(_other.begin(), _other.end());
+            _m._p_spore_list = std::make_shared<spore_builder_list_t>();
+            if(_other._p_spore_list)
+                _m._p_spore_list->assign(_other._p_spore_list->begin(), _other._p_spore_list->end());
+            if(_p_spore_list)
+                _m._p_spore_list->assign(_p_spore_list->begin(), _p_spore_list->end());
             _m._in_neure = std::make_shared<neure_builder>(_type, {_in_neure, _other._in_neure});
             _m._out_neure = std::make_shared<neure_builder>(_type, {_out_neure, _other._out_neure});
             return std::move(_m);
         }
 
     protected:
-        std::vector<chain_builder> _chains;
+        p_spore_builder_list_t _p_spore_list{nullptr};
         p_neure_builder_t _in_neure{nullptr};
         p_neure_builder_t _out_neure{nullptr};
     };
@@ -376,7 +396,12 @@ namespace sf
         enum  signal{data_in};
 
         data_pack_builder& get_data_pack_builder();
-        void push(data_pack&& _data_pack);
+        void push(data_pack&& _data_pack){
+
+        }
+        void push(const data_pack& _data_pack){
+
+        }
 
 
     protected:
@@ -398,13 +423,13 @@ namespace sf
             return _type;
         }
 
-        void set_data_format(p_data_format_t _f){
+        void set_data_format(p_data_format_builder_t _f){
             std::lock_guard<std::mutex> lk(_lock_builder);
-            _data_format = _f;
+            _data_format_builder = _f;
         }
-        p_data_format_t get_data_format() const{
+        p_data_format_builder_t get_data_format() const{
             std::lock_guard<std::mutex> lk(_lock_builder);
-            return _data_format;
+            return _data_format_builder;
         }
 
         void set_actuator(const p_actuator_t& _act){
@@ -426,7 +451,7 @@ namespace sf
         }
 
         void add_trigger(const axon::signal _signal, trigger_action&& _action){
-            add_trigger(trigger(&this, _signal), std::move(_action));
+            add_trigger(trigger(this, _signal), std::move(_action));
         }
 
         p_axon_t&& to_axon() const{
@@ -457,7 +482,7 @@ namespace sf
     protected:
         mutable std::mutex _lock_builder;
         _meta_axon_type _type{UNKNOWN};
-        p_data_format_t _data_format{nullptr};
+        p_data_format_builder_t _data_format_builder{nullptr};
         p_actuator_t _actuator;
         std::map<trigger, trigger_action> _trigger_action;
     };
@@ -495,8 +520,13 @@ namespace sf
 
     class spore_builder{
     public:
+        spore_builder(){
 
-        void reset();
+        }
+
+        void reset(){
+
+        }
         p_data_format_builder_t add(std::string _format_name,  const p_data_format_builder_t& _p_data_format_builder_t){
             if(!_p_data_format_builder_t)
                 return nullptr;
@@ -542,6 +572,25 @@ namespace sf
         std::map<std::string, p_axon_builder_t> _axon_array;
     };
 
+    class spore_odd : public spore_builder{
+    public:
+        spore_odd(){
+            axon_builder _out_axon_builder;
+            _out_axon_builder.set_type(_meta_axon_type::OUT);
+            _out_axon_builder.set_data_format(data_format_builder::get_unknow());
+            p_axon_t _out = add("_out", _out_axon_builder);
+            
+            axon_builder _in_axon;
+            _in_axon.set_type(_meta_axon_type::IN_AXON);
+            _in_axon.set_data_format(data_format_builder::get_unknow());
+            _in_axon.add_trigger(axon::signal::data_in,
+                [&](data_context &context, const axon &_axon, const data_pack &_in_pack){
+                    _out->push(_in_pack);
+            });
+            add("_in", _in_axon);
+        }
+    };
+
     class trigger{
     public:
         /*
@@ -549,9 +598,12 @@ namespace sf
         2. signal, 描述这个源的什么信号会导致触发
         */
         /*for data_pack*/
-        trigger(const data_pack& _data_pack, data_format_path&& _path, data_pack::signal _signal);
+        trigger(const data_pack& _data_pack, data_format_path&& _path, data_pack::signal _signal){
+        }
         /*for axon*/
-        trigger(const axon& _axon, axon::signal _signal);
+        trigger(const p_axon_builder_t& _axon, axon::signal _signal){
+
+        }
 
     };
 
