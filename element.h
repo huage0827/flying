@@ -24,9 +24,8 @@ namespace sf
     class virtual_t;
 
     class cluster;
-    class trigger;
+    class data_trigger;
     class data_format;
-    class data_format_builder;
 
     //数值定位符号，类似于: fileInfo/state这样的路径
     class data_format_path;
@@ -36,57 +35,44 @@ namespace sf
     class data_pack_builder;
 
     class chain;
-    class chain_builder;
-
     class axon;
-    class axon_builder;
-
-    class neure;
-    class neure_builder;
-
     class spore;
-    class spore_builder;
     class spore_odd;
-
     class actuator;
-
     class neure;
-    class neure_builder;
+    class data_action;
 
     
     typedef std::shared_ptr<virtual_t> p_virtual_t;
 
     typedef std::shared_ptr<data_format> p_data_format_t;
-    typedef std::shared_ptr<data_format_builder> p_data_format_builder_t;
 
     typedef std::unique_ptr<data_pack> p_data_pack_t;
     typedef std::unique_ptr<data_pack_builder> p_data_pack_builder_t;
 
     typedef std::unique_ptr<chain> p_chain_t;
-    typedef std::shared_ptr<chain_builder> p_chain_builder_t;
-    typedef std::list<p_chain_builder_t> chain_builder_list_t;
-    typedef std::shared_ptr<chain_builder_list_t> p_chain_builder_list_t;
+    typedef std::list<p_chain_t> chain_list_t;
+    typedef std::shared_ptr<chain_list_t> p_chain_list_t;
 
 
     typedef std::shared_ptr<axon> p_axon_t;
-    typedef std::shared_ptr<axon_builder> p_axon_builder_t;
 
     typedef std::shared_ptr<spore> p_spore_t;
-    typedef std::shared_ptr<spore_builder> p_spore_builder_t;
-    typedef std::list<p_spore_builder_t> spore_builder_list_t;
-    typedef std::shared_ptr<spore_builder_list_t> p_spore_builder_list_t;
+    typedef std::list<p_spore_t> spore_list_t;
+    typedef std::shared_ptr<spore_list_t> p_spore_list_t;
 
     typedef std::shared_ptr<data_context> p_data_context_t;
 
     typedef std::shared_ptr<actuator> p_actuator_t;
 
     typedef std::shared_ptr<neure> p_neure_t;
-    typedef std::shared_ptr<neure_builder> p_neure_builder_t;
 
     typedef std::unique_ptr<pack_pool<data_pack>> p_pool_t;
 
-    typedef std::function< void(data_context &, const axon &, const data_pack & )> trigger_action;
-    typedef std::function< bool(const std::string&, const p_axon_builder_t& )> walk_axon_builder_function;
+    typedef std::shared_ptr<data_action> p_data_action_t;
+
+    typedef std::function< void(data_context &, const axon &, const data_pack & )> data_handler;
+    typedef std::function< bool(const std::string&, const p_axon_t& )> walk_axon_function;
 
     class virtual_t{
     };
@@ -103,10 +89,10 @@ namespace sf
     };
 
     template<typename _struct_t = std::string>
-	class data_format_builder {
+	class data_format {
 
-        static p_data_format_builder_t get_unknow(){
-            return p_data_format_builder_t();
+        static p_data_format_t get_unknow(){
+            return p_data_format_t();
         }
 
 		p_data_format_t&& to_data_format(){
@@ -114,7 +100,7 @@ namespace sf
         }
 	};
 
-    typedef data_format_builder<std::string> format_string;
+    typedef data_format<std::string> format_string;
 
     class data_value{
     public:
@@ -161,13 +147,13 @@ namespace sf
     /*
     链，两端是axon，一个in， 一个out
     */
-    class chain_builder{
+    class chain{
     public:
         
-        chain_builder():_is_valid(false){
+        chain():_is_valid(false){
         }
 
-        chain_builder(p_axon_builder_t _a1, p_axon_builder_t _a2):_is_valid(false){
+        chain(p_axon_t _a1, p_axon_t _a2):_is_valid(false){
             if(_a1->_type == ~_a2->_type){
                 //类型匹配判断
                 //...
@@ -192,8 +178,8 @@ namespace sf
         }
 
     protected:
-        p_axon_builder_t _axon_in;
-        p_axon_builder_t _axon_out;
+        p_axon_t _axon_in;
+        p_axon_t _axon_out;
         bool _is_valid;
     };
 
@@ -264,33 +250,33 @@ namespace sf
     neure 一组以确定方式聚合的axon或者子neure
     */
     enum neure_type{_axon_list, _chain_list, _addition, _multiplication};
-    class neure_builder{
+    class neure{
     public:
-        neure_builder(){
+        neure(){
 
         }
-        neure_builder(const neure_builder& _other):_type(_other._type),_vector(_other._vector){
+        neure(const neure& _other):_type(_other._type),_vector(_other._vector){
         }
-        neure_builder(neure_builder&& _other):_type(_other._type){
+        neure(neure&& _other):_type(_other._type){
             std::swap(_vector,_other._vector);
         }
-        neure_builder(neure_type _t, const std::vector<p_neure_builder_t>& _ns):_type(_t){
-            std::for_each(_ns.begin(), _ns.end(), [&](p_neure_builder_t& _n){
+        neure(neure_type _t, const std::vector<p_neure_t>& _ns):_type(_t){
+            for(p_neure_t &_p : _ns){
                 if(_p)
-                    _vector.push_back(std::shared_ptr<virtual_t>(reinterpret_cast<virtual_t>(_n.get()), deleter<neure_builder>()));
-            });
+                    _vector.push_back(std::shared_ptr<virtual_t>(reinterpret_cast<virtual_t>(_p.get()), deleter<neure>()));
+            }
         }
-        neure_builder(const std::vector<p_axon_builder_t>& _as):_type(neure_type::_axon_list){
-            std::for_each(_as.begin(), _as.end(), [&](p_axon_builder_t& _a){
+        neure(const std::vector<p_axon_t>& _as):_type(neure_type::_axon_list){
+            for(p_neure_t &_a : _as){
                 if(_a)
-                    _vector.push_back(std::shared_ptr<virtual_t>(reinterpret_cast<virtual_t>(_a.get()), deleter<axon_builder>()));
-            });
+                    _vector.push_back(std::shared_ptr<virtual_t>(reinterpret_cast<virtual_t>(_a.get()), deleter<axon>()));
+            }
         }
-        neure_builder(const std::vector<p_chain_builder_t>& _cs):_type(neure_type::_chain_list){
-            std::for_each(_as.begin(), _as.end(), [&](p_chain_builder_t& _a){
-                if(_a)
-                    _vector.push_back(std::shared_ptr<virtual_t>(reinterpret_cast<virtual_t>(_a.get()), deleter<chain_builder>()));
-            });
+        neure(const std::vector<p_chain_t>& _cs):_type(neure_type::_chain_list){
+            for(p_neure_t &_c : _cs){
+                if(_c)
+                    _vector.push_back(std::shared_ptr<virtual_t>(reinterpret_cast<virtual_t>(_c.get()), deleter<chain>()));
+            }
         }
 
         neure_type get_type() const {
@@ -321,11 +307,11 @@ namespace sf
         void matrix(matrix&& _c):_in_neure(std::move(_c._in_neure)),_out_neure(std::move(_c._out_neure)){
             std::swap(_p_spore_list, _c._p_spore_list);
         }
-        void matrix(p_spore_builder_t  _p_s){
+        void matrix(p_spore_t  _p_s){
             if(_p_s){
-                std::vector<p_axon_builder_t> _is;
-                std::vector<p_axon_builder_t> _os;
-                _p_s->walk_axon_builder([&](const std::string& _name, const p_axon_builder_t & _p){
+                std::vector<p_axon_t> _is;
+                std::vector<p_axon_t> _os;
+                _p_s->walk_axon([&](const std::string& _name, const p_axon_t & _p){
                     if(_p){
                         if(_p->get_type() == IN_AXON){
                             _is.push_back(_p);
@@ -334,22 +320,22 @@ namespace sf
                         }
                     }
                 });
-                _in_neure = std::make_shared<neure_builder>(_is);
-                _out_neure = std::make_shared<neure_builder>(_os);
+                _in_neure = std::make_shared<neure>(_is);
+                _out_neure = std::make_shared<neure>(_os);
             }
         }
-        void matrix(spore_builder&& _s) == delete;
+        void matrix(spore&& _s) == delete;
 
-        void matrix(p_axon_builder_t _p_a){
+        void matrix(p_axon_t _p_a){
             if(_p_a){
                 if(_p_a->get_type() == IN_AXON)
-                    _in_neure = std::make_shared<neure_builder>({_p_a});
+                    _in_neure = std::make_shared<neure>({_p_a});
                 else if(_p_a->get_type() == OUT_AXON)
-                    _out_neure = std::make_shared<neure_builder>({_p_a});
+                    _out_neure = std::make_shared<neure>({_p_a});
             }
         }
 
-        void matrix(axon_builder&& _a) == delete;
+        void matrix(axon&& _a) == delete;
 
         matrix&& operator*(const matrix &_other){
             return std::move(_union(_other, neure_type::_multiplication));
@@ -372,30 +358,32 @@ namespace sf
     protected:
         matrix&& _union(const matrix &_other, neure_type _type){
             matrix _m;
-            _m._p_spore_list = std::make_shared<spore_builder_list_t>();
+            _m._p_spore_list = std::make_shared<spore_list_t>();
             if(_other._p_spore_list)
                 _m._p_spore_list->assign(_other._p_spore_list->begin(), _other._p_spore_list->end());
             if(_p_spore_list)
                 _m._p_spore_list->assign(_p_spore_list->begin(), _p_spore_list->end());
-            _m._in_neure = std::make_shared<neure_builder>(_type, {_in_neure, _other._in_neure});
-            _m._out_neure = std::make_shared<neure_builder>(_type, {_out_neure, _other._out_neure});
+            _m._in_neure = std::make_shared<neure>(_type, {_in_neure, _other._in_neure});
+            _m._out_neure = std::make_shared<neure>(_type, {_out_neure, _other._out_neure});
             return std::move(_m);
         }
 
     protected:
-        p_spore_builder_list_t _p_spore_list{nullptr};
-        p_neure_builder_t _in_neure{nullptr};
-        p_neure_builder_t _out_neure{nullptr};
+        p_spore_list_t _p_spore_list{nullptr};
+        p_neure_t _in_neure{nullptr};
+        p_neure_t _out_neure{nullptr};
     };
 
 
-
-    class axon
-    {
+    class axon_builder;
+    class axon{
     public:
         enum  signal{data_in};
 
-        data_pack_builder& get_data_pack_builder();
+        data_pack_builder&& get_data_pack_builder(){
+            std::move(data_pack_builder());
+        }
+
         void push(data_pack&& _data_pack){
 
         }
@@ -403,64 +391,22 @@ namespace sf
 
         }
 
-
-    protected:
-        friend class cluster;
-        friend class spore;
-        friend class axon_builder;
-        unsigned int _actuator_id;
-    };
-
-    class axon_builder{
-    public:
-
-        void set_type(_meta_axon_type _t){
-            std::lock_guard<std::mutex> lk(_lock_builder);
-            _type = _t;
-        }
         _meta_axon_type get_type() const{
             std::lock_guard<std::mutex> lk(_lock_builder);
             return _type;
         }
 
-        void set_data_format(p_data_format_builder_t _f){
+        p_data_format_t get_data_format() const{
             std::lock_guard<std::mutex> lk(_lock_builder);
-            _data_format_builder = _f;
+            return _data_format;
         }
-        p_data_format_builder_t get_data_format() const{
+
+        p_actuator_t get_actuator() const{
             std::lock_guard<std::mutex> lk(_lock_builder);
-            return _data_format_builder;
+            return _actuator;
         }
 
-        void set_actuator(const p_actuator_t& _act){
-            std::lock_guard<std::mutex> lk(_lock_builder);
-            _actuator = _act;
-        }
-        actuator&& get_actuator() const{
-            std::lock_guard<std::mutex> lk(_lock_builder);
-            return std::move(actuator(_actuator));
-        }
-
-        void reset(){
-
-        }
-
-        void add_trigger(const trigger& _trigger, trigger_action&& _action){
-            std::lock_guard<std::mutex> lk(_lock_builder);
-            _trigger_action[_trigger] = std::move(_action);
-        }
-
-        void add_trigger(const axon::signal _signal, trigger_action&& _action){
-            add_trigger(trigger(this, _signal), std::move(_action));
-        }
-
-        p_axon_t&& to_axon() const{
-            std::lock_guard<std::mutex> lk(_lock_builder);
-
-            return std::move(p_axon_t());
-        }
-
-        matrix&& connect(p_axon_builder_t &_other){
+        matrix&& connect(p_axon_t &_other){
             if(_type != ~_other->_type)
             {
              //MSG... ERROR
@@ -468,24 +414,82 @@ namespace sf
             }
             if(_type == _meta_axon_type::IN_AXON)
                 return matrix();
-            return std::move(matrix({std::make_shared<chain_builder>(shared_ptr<axon_builder>(this) , _other)}));
+            return std::move(matrix({std::make_shared<chain>(shared_ptr<axon>(this) , _other)}));
         }
 
-        matrix&& operator<<(p_axon_builder_t &_other){
-            return std::move(matrix(shared_ptr<axon_builder>(this)) << matrix(_other));
+        matrix&& operator<<(p_axon_t &_other){
+            return std::move(matrix(shared_ptr<axon>(this)) << matrix(_other));
         }
 
-        matrix&& operator>>(p_axon_builder_t &_other){
-            return std::move(matrix(shared_ptr<axon_builder>(this)) >> matrix(_other));
+        matrix&& operator>>(p_axon_t &_other){
+            return std::move(matrix(shared_ptr<axon>(this)) >> matrix(_other));
+        }
+
+    protected:
+        friend class cluster;
+        friend class spore;
+        friend class axon_builder;
+
+        _meta_axon_type _type{UNKNOWN};
+        p_data_format_t _data_format{nullptr};
+        p_actuator_t _actuator{nullptr};
+    };
+
+    struct data_action{
+        data_action(const data_trigger _t, const data_handler &_h):_trigger(_t), _handler(_h){
+        }
+        data_trigger _trigger;
+        data_handler _handler;
+    };
+
+    class axon_builder : public axon{
+    public:
+        void reset(){
+            std::lock_guard<std::mutex> lk(_lock_builder);
+            _action_list.clear();
+            _type = _meta_axon_type::UNKNOWN;
+            _data_format = nullptr;
+            _actuator = nullptr;
+        }
+
+        void set_type(_meta_axon_type _t){
+            std::lock_guard<std::mutex> lk(_lock_builder);
+            _type = _t;
+        }
+
+        void set_data_format(p_data_format_t _f){
+            std::lock_guard<std::mutex> lk(_lock_builder);
+            _data_format = _f;
+        }
+
+        void set_actuator(const p_actuator_t& _act){
+            std::lock_guard<std::mutex> lk(_lock_builder);
+            _actuator = _act;
+        }
+
+        void add_action(const data_trigger& _trigger, const data_handler& _action){
+            std::lock_guard<std::mutex> lk(_lock_builder);
+            _action_list.push_back(std::make_shared<data_action>(_trigger, _actuator));
+        }
+
+        void add_action(axon::signal _signal, const data_handler& _action){
+            add_action(data_trigger(this, _signal), std::move(_action));
+        }
+
+        p_axon_t to_axon() const{
+            std::lock_guard<std::mutex> lk(_lock_builder);
+            p_axon_t _a = std::make_shared<axon>();
+            _a->_type = _type;
+            _a->_data_format = _data_format;
+            _a->_actuator = _actuator;
+            return _a;
         }
 
     protected:
         mutable std::mutex _lock_builder;
-        _meta_axon_type _type{UNKNOWN};
-        p_data_format_builder_t _data_format_builder{nullptr};
-        p_actuator_t _actuator;
-        std::map<trigger, trigger_action> _trigger_action;
+        std::list<p_data_action_t> _action_list;
     };
+
 
     class neure{
     public:
@@ -518,71 +522,72 @@ namespace sf
     };
     */
 
-    class spore_builder{
+    class spore_builder;
+    class spore{
     public:
-        spore_builder(){
+        spore(){
 
         }
 
-        void reset(){
-
-        }
-        p_data_format_builder_t add(std::string _format_name,  const p_data_format_builder_t& _p_data_format_builder_t){
-            if(!_p_data_format_builder_t)
-                return nullptr;
-            p_data_format_builder_t _p{nullptr};
-            std::lock_guard<std::mutex> lk(_lock_builder);
-            _context_array[_format_name] = _p = std::make_shared<data_format_builder>(*_p_data_format_builder_t->get());
-            return _p;
-        }
-        p_data_format_builder_t add(std::string _format_name, const data_format_builder& _data_format_builder){
-            return add(_format_name, p_data_format_builder_t(&_data_format_builder));
-        }
-        p_axon_builder_t add(std::string _axon_name, const p_axon_builder_t& _p_axon_builder_t){
-            if(!_p_axon_builder_t)
-                return nullptr;
-            p_axon_builder_t _p{nullptr};
-            std::lock_guard<std::mutex> lk(_lock_builder);
-            _axon_array[_axon_name] = _p = std::make_shared<axon_builder>(*_p_axon_builder_t->get());
-            return _p;
-        }
-        p_axon_builder_t add(std::string _axon_name, const axon_builder& _axon_builder){
-            return add(_format_name, p_axon_builder_t(&_axon_builder));
+        p_spore_t clone(){
+            return p_spore_t();
         }
 
-        void walk_axon_builder(const walk_axon_builder_function &_func){
+        p_spore_t newborn(){
+            return p_spore_t();
+        }
+
+        void walk_axon(const walk_axon_function &_func){
             if(!_func) return;
             for (auto ite = _axon_array.begin(); ite != _axon_array.end(); ite ++){
                 if(!(_func)(ite->first, ite->second))
                     return;
             }
         }
-
-     /*
-        通过add_trigger的方式添加处理机制（trigger），一个trigger包括：
-        1._trigger, trigger
-        2._action, 具体的处理执行函数
-     */
-        void add_trigger(trigger& _trigger, trigger_action& _action);
-
-		spore&& to_spore();
     protected:
-        std::mutex _lock_builder;
-        std::map<std::string, p_data_format_builder_t> _context_array;
-        std::map<std::string, p_axon_builder_t> _axon_array;
+        std::map<std::string, p_data_format_t> _context_array;
+        std::map<std::string, p_axon_t> _axon_array;
+        std::list<p_data_action_t> _action_list;
     };
 
-    class spore_odd : public spore_builder{
+    class spore_builder: public spore{
+    public:
+        p_data_format_t add_data_format(std::string _format_name,  const p_data_format_t& _p_data_format_t){
+            if(!_p_data_format_t)
+                return nullptr;
+            p_data_format_t _p{nullptr};
+            std::lock_guard<std::mutex> lk(_lock_builder);
+            _context_array[_format_name] = _p = std::make_shared<data_format>(*_p_data_format_t->get());
+            return _p;
+        }
+        p_axon_t add_axon(std::string _axon_name, const axon_builder& _axon_builder){
+            p_axon_t _p = _axon_builder.to_axon();
+            std::lock_guard<std::mutex> lk(_lock_builder);
+            _action_list.merge(_axon_builder._action_list);
+            _axon_array[_axon_name] = _p;
+            return _p;
+        }
+
+        void add_trigger(const data_trigger& _trigger, const data_handler& _action){
+            std::lock_guard<std::mutex> lk(_lock_builder);
+            _action_list.push_back(std::make_shared<data_action>(_trigger, _actuator));
+        }
+    protected:
+        std::mutex _lock_builder;
+    };
+
+
+    class spore_odd : public spore{
+        p_axon_t _out_axon;
+        p_axon_t _in_axon;
     public:
         spore_odd(){
-            axon_builder _out_axon_builder;
-            _out_axon_builder.set_type(_meta_axon_type::OUT);
-            _out_axon_builder.set_data_format(data_format_builder::get_unknow());
-            p_axon_t _out = add("_out", _out_axon_builder);
+            _out_axon.set_type(_meta_axon_type::OUT);
+            _out_axon.set_data_format(data_format::get_unknow());
+            p_axon_t _out_axon = add("_out", meta_axon_type::OUT);
             
-            axon_builder _in_axon;
             _in_axon.set_type(_meta_axon_type::IN_AXON);
-            _in_axon.set_data_format(data_format_builder::get_unknow());
+            _in_axon.set_data_format(data_format::get_unknow());
             _in_axon.add_trigger(axon::signal::data_in,
                 [&](data_context &context, const axon &_axon, const data_pack &_in_pack){
                     _out->push(_in_pack);
@@ -591,17 +596,19 @@ namespace sf
         }
     };
 
-    class trigger{
+
+
+    class data_trigger{
     public:
         /*
         1. handel, 用于描述触发这个trigger的来源
         2. signal, 描述这个源的什么信号会导致触发
         */
         /*for data_pack*/
-        trigger(const data_pack& _data_pack, data_format_path&& _path, data_pack::signal _signal){
+        data_trigger(const data_pack& _data_pack, data_format_path&& _path, data_pack::signal _signal){
         }
         /*for axon*/
-        trigger(const p_axon_builder_t& _axon, axon::signal _signal){
+        data_trigger(const p_axon_t& _axon, axon::signal _signal){
 
         }
 
@@ -690,7 +697,7 @@ namespace sf
 
         void init_neure_builder(){
             std::call_once(_init_neure_builder_flag, [&](){
-                _p_neure_builder = std::make_shared<neure_builder>();
+                _p_neure_builder = std::make_shared<neure>();
             });
 
         }
@@ -713,7 +720,7 @@ namespace sf
         unsigned int _actuator_alloc_count{0};
 
         p_pool_t _p_pool;
-        p_neure_builder_t _p_neure_builder;
+        p_neure_t _p_neure_builder;
         std::once_flag _init_pool_flag;
         std::once_flag _init_neure_builder_flag;
         std::mutex _lock_operate;
