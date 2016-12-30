@@ -1,15 +1,15 @@
 /*!
- * \file element.h
- * \date 2016/12/06 18:05
- *
- * \author kicsy
- * Contact: lmj07luck@126.com
- *
- * \brief 
- *
- * 本文档是"flying spore" 原型设计草案的一部分，它在框架层面描述应该提供哪些API给使用者。 
- *
- * \note
+* \file element.h
+* \date 2016/12/06 18:05
+*
+* \author kicsy
+* Contact: lmj07luck@126.com
+*
+* \brief 
+*
+* 本文档是"flying spore" 原型设计草案的一部分，它在框架层面描述应该提供哪些API给使用者。 
+*
+* \note
 */
 
 #ifndef ELEMENT_H_INCLUDED
@@ -20,8 +20,9 @@
 
 namespace sf
 {
-    
+
     class virtual_t;
+    class base_object;
 
     class cluster;
     class data_trigger;
@@ -42,9 +43,12 @@ namespace sf
     class neure;
     class data_action;
 
-    
-    typedef std::shared_ptr<virtual_t> p_virtual_t;
 
+    typedef std::shared_ptr<virtual_t> p_virtual_t;
+    typedef std::shared_ptr<base_object> p_object_t;
+    typedef std::list<p_object_t> object_list_t;
+
+    
     typedef std::shared_ptr<data_format> p_data_format_t;
 
     typedef std::unique_ptr<data_pack> p_data_pack_t;
@@ -71,11 +75,9 @@ namespace sf
 
     typedef std::shared_ptr<data_action> p_data_action_t;
 
-    typedef std::function< void(data_context &, const axon &, const data_pack & )> data_handler;
+    typedef std::function< bool(const p_object_t& )> walk_object_function;
+    typedef std::function< void(const data_context &, const axon &, const data_pack & )> data_handler;
     typedef std::function< bool(const std::string&, const p_axon_t& )> walk_axon_function;
-
-    class virtual_t{
-    };
 
     template<class T> 
     struct deleter{
@@ -84,21 +86,75 @@ namespace sf
         } 
     };
 
-    class data_format{
+    class virtual_t{
     public:
+        template<class T>
+        static p_virtual_t make_ptr(std::shared_ptr<T> _p){
+            return p_virtual_t(reinterpret_cast<virtual_t>(_p.get()), deleter<T>());
+        }
     };
 
+    class base_object{     
+    };
+
+    class object_container: public base_object{
+    public:
+        object_container(p_object_t _parent = nullptr):_parent_object(_parent){
+        }
+        p_object_t add_child(p_object_t _p){
+            if(!_p){
+                std::lock_guard<std::mutex> lk(_lock);
+                _childs.push_back(_p);
+            }
+            return _p;
+        }
+
+        p_object_t remove_child(p_object_t _p){
+            if(!_p){
+                std::lock_guard<std::mutex> lk(_lock);
+                _childs.remove(_p);
+            }
+            return _p;
+        }
+
+        object_list_t::size_type get_child_count() const{
+            std::lock_guard<std::mutex> lk(_lock);
+            return _childs.size();
+        }
+
+        void clear_childs(){
+            std::lock_guard<std::mutex> lk(_lock);
+            _childs.clear();
+        }
+
+        void walk_childs(const walk_object_function &_func){
+            if(!_func) return;
+            for (const auto &ite : _childs){
+                if(!(_func)(ite))
+                    return;
+            }
+        }
+    protected:
+        mutable std::mutex _lock;
+        object_list_t _childs;
+        p_object_t _parent_object{nullptr};
+    };
+
+    class data_format: public base_object{
+    public:
+    };
+/*
     template<typename _struct_t = std::string>
-	class data_format {
+    class data_format {
 
         static p_data_format_t get_unknow(){
             return p_data_format_t();
         }
 
-		p_data_format_t&& to_data_format(){
+        p_data_format_t&& to_data_format(){
             return std::move(p_data_format_t());
         }
-	};
+    };*/
 
     typedef data_format<std::string> format_string;
 
@@ -113,10 +169,10 @@ namespace sf
         std::string as_string();
     };
 
-	class data_pack_builder {
+    class data_pack_builder {
     public:
-		data_pack&& to_data_pack();
-	};
+        data_pack&& to_data_pack();
+    };
 
     class data_pack
     {
@@ -147,13 +203,12 @@ namespace sf
     /*
     链，两端是axon，一个in， 一个out
     */
-    class chain{
+    class chain : base_object{
     public:
-        
-        chain():_is_valid(false){
+        chain(){
         }
 
-        chain(p_axon_t _a1, p_axon_t _a2):_is_valid(false){
+        chain(p_axon_t _a1, p_axon_t _a2){
             if(_a1->_type == ~_a2->_type){
                 //类型匹配判断
                 //...
@@ -168,88 +223,89 @@ namespace sf
                     _axon_out = _a2;
             }
         }
-
-        p_chain_t&& to_chain(){
-            return std::move(p_chain_t());
-        }
-
         bool is_valid(){
-            return _is_valid;
+            return _axon_in && _axon_out;
         }
 
     protected:
-        p_axon_t _axon_in;
-        p_axon_t _axon_out;
-        bool _is_valid;
+        p_axon_t _axon_in{nullptr};
+        p_axon_t _axon_out{nullptr};
     };
 
     /*
     class matrix{
     public:
-        void matrix(){}
+    void matrix(){}
 
-        void matrix(axon_builder &_axon){
-            add({p_axon_builder_t(&_axon)});
-        }
-        void matrix(std::vector<p_axon_builder_t> &_axons){
-            add(_axons);
-        }
-        void matrix(std::vector<p_axon_builder_t> &&_axons){
-            add(std::move(_axons));
-        }
-        void matrix(std::vector<p_chain_builder_t> &_chains){
-            add(_chains);
-        }
-        void matrix(std::vector<p_chain_builder_t> &&_chains){
-            add(std::move(_chains));
-        }
+    void matrix(axon_builder &_axon){
+    add({p_axon_builder_t(&_axon)});
+    }
+    void matrix(std::vector<p_axon_builder_t> &_axons){
+    add(_axons);
+    }
+    void matrix(std::vector<p_axon_builder_t> &&_axons){
+    add(std::move(_axons));
+    }
+    void matrix(std::vector<p_chain_builder_t> &_chains){
+    add(_chains);
+    }
+    void matrix(std::vector<p_chain_builder_t> &&_chains){
+    add(std::move(_chains));
+    }
 
-        void add(std::vector<p_axon_builder_t> &_axons){
-            _meta_axon_type _t = _meta_axon_type::UNKNOWN;
-            for_each(_axons.begin(), _axons.end(),  [&](p_axon_builder_t &_axon){
-                if(_t != _meta_axon_type::UNKNOWN && _axon->_type != _t){
-                    _t = _meta_axon_type::UNKNOWN;
-                    break;
-                }
-                _t = _axon->_type;
-            });
-            if(_t == _meta_axon_type::IN_AXON)
-                _axons_in.push_back(_axons);
-            else if(_t == _meta_axon_type::OUT_AXON)
-                _axons_out.push_back(_axons);
-        }
-        void add(std::vector<p_axon_builder_t> &&_axons){
-            _meta_axon_type _t = _meta_axon_type::UNKNOWN;
-            for_each(_axons.begin(), _axons.end(),  [&](p_axon_builder_t &_axon){
-                if(_t != _meta_axon_type::UNKNOWN && _axon->_type != _t){
-                    _t = _meta_axon_type::UNKNOWN;
-                    break;
-                }
-                _t = _axon->_type;
-            });
-            if(_t == _meta_axon_type::IN_AXON)
-                _axons_in.emplace_back(_axons);
-            else if(_t == _meta_axon_type::OUT_AXON)
-                _axons_out.emplace_back(_axons);
-        }
-        void add(std::list<p_chain_builder_t> &_chains){
-            _chains.push_back(_chains);
-        }
-        void add(std::list<p_chain_builder_t> &&_chains){
-            _chains.emplace_back(_chains);
-        }
+    void add(std::vector<p_axon_builder_t> &_axons){
+    _meta_axon_type _t = _meta_axon_type::UNKNOWN;
+    for_each(_axons.begin(), _axons.end(),  [&](p_axon_builder_t &_axon){
+    if(_t != _meta_axon_type::UNKNOWN && _axon->_type != _t){
+    _t = _meta_axon_type::UNKNOWN;
+    break;
+    }
+    _t = _axon->_type;
+    });
+    if(_t == _meta_axon_type::IN_AXON)
+    _axons_in.push_back(_axons);
+    else if(_t == _meta_axon_type::OUT_AXON)
+    _axons_out.push_back(_axons);
+    }
+    void add(std::vector<p_axon_builder_t> &&_axons){
+    _meta_axon_type _t = _meta_axon_type::UNKNOWN;
+    for_each(_axons.begin(), _axons.end(),  [&](p_axon_builder_t &_axon){
+    if(_t != _meta_axon_type::UNKNOWN && _axon->_type != _t){
+    _t = _meta_axon_type::UNKNOWN;
+    break;
+    }
+    _t = _axon->_type;
+    });
+    if(_t == _meta_axon_type::IN_AXON)
+    _axons_in.emplace_back(_axons);
+    else if(_t == _meta_axon_type::OUT_AXON)
+    _axons_out.emplace_back(_axons);
+    }
+    void add(std::list<p_chain_builder_t> &_chains){
+    _chains.push_back(_chains);
+    }
+    void add(std::list<p_chain_builder_t> &&_chains){
+    _chains.emplace_back(_chains);
+    }
 
     protected:
-        std::list<std::vector<p_axon_builder_t>> _axons_in;
-        std::list<std::vector<p_axon_builder_t>> _axons_out;
-        std::list<p_chain_builder_t> _chains;
+    std::list<std::vector<p_axon_builder_t>> _axons_in;
+    std::list<std::vector<p_axon_builder_t>> _axons_out;
+    std::list<p_chain_builder_t> _chains;
     };
     */
 
     /*
-    neure 一组以确定方式聚合的axon或者子neure
+    neure 一组以确定方式聚合的axon,chain或者子neure
     */
-    enum neure_type{_axon_list, _chain_list, _addition, _multiplication};
+    enum neure_type{
+        _unknow = 0,
+        _axon_list = 1 << 0, 
+        _chain_list = 1 << 1, 
+        _neure_list = 1 << 2, 
+        _addition = 1 << 16, 
+        _multiplication = 1 << 17
+    };
     class neure{
     public:
         neure(){
@@ -260,22 +316,30 @@ namespace sf
         neure(neure&& _other):_type(_other._type){
             std::swap(_vector,_other._vector);
         }
-        neure(neure_type _t, const std::vector<p_neure_t>& _ns):_type(_t){
+        neure(neure_type _t):_type(_t){
+        }
+
+        template<class T>
+        void add(std::shared_ptr<T> _item){
+            _vector.push_back(virtual_t::make_ptr<T>(_item));
+        }
+
+        neure(neure_type _t, const std::vector<p_neure_t>& _ns):_type(neure_type::_neure_list |  _t){
             for(p_neure_t &_p : _ns){
                 if(_p)
-                    _vector.push_back(std::shared_ptr<virtual_t>(reinterpret_cast<virtual_t>(_p.get()), deleter<neure>()));
+                    _vector.push_back(virtual_t::make_ptr(_p));
             }
         }
-        neure(const std::vector<p_axon_t>& _as):_type(neure_type::_axon_list){
+        neure(neure_type _t, const std::vector<p_axon_t>& _as):_type(neure_type::_axon_list | t){
             for(p_neure_t &_a : _as){
                 if(_a)
-                    _vector.push_back(std::shared_ptr<virtual_t>(reinterpret_cast<virtual_t>(_a.get()), deleter<axon>()));
+                    _vector.push_back(virtual_t::make_ptr(_a));
             }
         }
         neure(const std::vector<p_chain_t>& _cs):_type(neure_type::_chain_list){
             for(p_neure_t &_c : _cs){
                 if(_c)
-                    _vector.push_back(std::shared_ptr<virtual_t>(reinterpret_cast<virtual_t>(_c.get()), deleter<chain>()));
+                    _vector.push_back(virtual_t::make_ptr(_c));
             }
         }
 
@@ -287,7 +351,7 @@ namespace sf
             return _vector.empty();
         }
     protected:
-        neure_type _type;
+        neure_type _type{_unknow};
         std::vector<p_virtual_t> _vector;
     }
 
@@ -298,7 +362,7 @@ namespace sf
     {
 
     public:
-        
+
         void matrix(){
 
         }
@@ -320,51 +384,66 @@ namespace sf
                         }
                     }
                 });
-                _in_neure = std::make_shared<neure>(_is);
-                _out_neure = std::make_shared<neure>(_os);
+                _in_neure = std::make_shared<neure>(neure_type::_multiplication,_is);
+                _out_neure = std::make_shared<neure>(neure_type::_multiplication,_os);
             }
         }
-        void matrix(spore&& _s) == delete;
 
         void matrix(p_axon_t _p_a){
             if(_p_a){
                 if(_p_a->get_type() == IN_AXON)
-                    _in_neure = std::make_shared<neure>({_p_a});
+                    _in_neure = std::make_shared<neure>(neure_type::_multiplication, {_p_a});
                 else if(_p_a->get_type() == OUT_AXON)
-                    _out_neure = std::make_shared<neure>({_p_a});
+                    _out_neure = std::make_shared<neure>(neure_type::_multiplication, {_p_a});
             }
         }
 
-        void matrix(axon&& _a) == delete;
-
         matrix&& operator*(const matrix &_other){
-            return std::move(_union(_other, neure_type::_multiplication));
+            return std::move(_union(*this, _other, neure_type::_multiplication));
         }
 
         matrix&& operator+(const matrix &_other){
-            return std::move(_union(_other, neure_type::_addition));
+            return std::move(_union(*this, _other, neure_type::_addition));
         }
 
         matrix&& operator>>(const matrix &_other){
-            //_other 必须包含输入
-            if(!_other._in_neure || _other._in_neure->is_empty()){
-                //MSG...
-                return matrix();
-            }
             //这里生成链，再把链封装成neure，追加的out axon里
-            
+
             return matrix();
         }
+
     protected:
-        matrix&& _union(const matrix &_other, neure_type _type){
+        static matrix&& _union(const matrix &_m1, const matrix &_m2, neure_type _type){
             matrix _m;
             _m._p_spore_list = std::make_shared<spore_list_t>();
-            if(_other._p_spore_list)
-                _m._p_spore_list->assign(_other._p_spore_list->begin(), _other._p_spore_list->end());
-            if(_p_spore_list)
-                _m._p_spore_list->assign(_p_spore_list->begin(), _p_spore_list->end());
-            _m._in_neure = std::make_shared<neure>(_type, {_in_neure, _other._in_neure});
-            _m._out_neure = std::make_shared<neure>(_type, {_out_neure, _other._out_neure});
+            if(_m2._p_spore_list)
+                _m._p_spore_list->assign(_m2._p_spore_list->begin(), _m2._p_spore_list->end());
+            if(_m1._p_spore_list)
+                _m._p_spore_list->assign(_m1._p_spore_list->begin(), _m1._p_spore_list->end());
+            _m._in_neure = std::make_shared<neure>(_type, {_m1._in_neure, _m2._in_neure});
+            _m._out_neure = std::make_shared<neure>(_type, {_m1._out_neure, _m2._out_neure});
+            return std::move(_m);
+        }
+
+        static matrix&& _connect(const matrix &_m1, const matrix &_m2){
+            //_m2 必须包含输入
+            if(!_m2._in_neure || _m2._in_neure->is_empty()){
+                //MSG...
+                return std::move(matrix());
+            }
+            if(!_m1._out_neure || _m1._out_neure->is_empty())
+                return _union(_m1, _m2, neure_type::_multiplication); 
+            matrix _m;
+            for(auto &_out : _m1._out_neure){
+                if((_out->get_type() & neure_type::_neure_list) == neure_type::_neure_list){
+
+                }else if((_out->get_type() & neure_type::_axon_list) == neure_type::_axon_list){
+
+                }else if((_out->get_type() & neure_type::_chain_list) == neure_type::_chain_list){
+                    //MSG...
+                }
+            }
+
             return std::move(_m);
         }
 
@@ -406,22 +485,20 @@ namespace sf
             return _actuator;
         }
 
-        matrix&& connect(p_axon_t &_other){
+        matrix&& connect(p_axon_t _other){
             if(_type != ~_other->_type)
             {
-             //MSG... ERROR
+                //MSG... ERROR
                 return std::move(matrix());
             }
-            if(_type == _meta_axon_type::IN_AXON)
-                return matrix();
             return std::move(matrix({std::make_shared<chain>(shared_ptr<axon>(this) , _other)}));
         }
 
-        matrix&& operator<<(p_axon_t &_other){
+        matrix&& operator<<(p_axon_t _other){
             return std::move(matrix(shared_ptr<axon>(this)) << matrix(_other));
         }
 
-        matrix&& operator>>(p_axon_t &_other){
+        matrix&& operator>>(p_axon_t _other){
             return std::move(matrix(shared_ptr<axon>(this)) >> matrix(_other));
         }
 
@@ -500,25 +577,25 @@ namespace sf
     //typedef std::function< bool(const p_axon_t & )> walk_axon_function;
     class spore{
     public:
-        spore(){
-        }
-        //void walk_axon(_meta_axon_type _type, const walk_axon_function &_func){
-        //    if(!_func) return;
-        //    for (std::vector<p_axon_t>::const_iterator ite = _axon_array.begin(); ite != _axon_array.end(); ite ++){
-        //        if(!(_func)(*ite))
-        //            return;
-        //    }
-        //}
-        unsigned int get_actuator_alloc_count(){
-            return 0;
-        }
+    spore(){
+    }
+    //void walk_axon(_meta_axon_type _type, const walk_axon_function &_func){
+    //    if(!_func) return;
+    //    for (std::vector<p_axon_t>::const_iterator ite = _axon_array.begin(); ite != _axon_array.end(); ite ++){
+    //        if(!(_func)(*ite))
+    //            return;
+    //    }
+    //}
+    unsigned int get_actuator_alloc_count(){
+    return 0;
+    }
     protected:
-        friend class cluster;
-        friend class spore_builder;
-        cluster *_p_cluster{nullptr};
-        std::vector<p_axon_t> _axon_array;
-        //p_axon_t _axon_array{nullptr};//=shared_ptr<axon>(new axon[size], default_delete<axon[]>()
-        
+    friend class cluster;
+    friend class spore_builder;
+    cluster *_p_cluster{nullptr};
+    std::vector<p_axon_t> _axon_array;
+    //p_axon_t _axon_array{nullptr};//=shared_ptr<axon>(new axon[size], default_delete<axon[]>()
+
     };
     */
 
@@ -582,17 +659,24 @@ namespace sf
         p_axon_t _in_axon;
     public:
         spore_odd(){
-            _out_axon.set_type(_meta_axon_type::OUT);
-            _out_axon.set_data_format(data_format::get_unknow());
-            p_axon_t _out_axon = add("_out", meta_axon_type::OUT);
-            
-            _in_axon.set_type(_meta_axon_type::IN_AXON);
-            _in_axon.set_data_format(data_format::get_unknow());
-            _in_axon.add_trigger(axon::signal::data_in,
-                [&](data_context &context, const axon &_axon, const data_pack &_in_pack){
-                    _out->push(_in_pack);
+            axon_builder _builder;
+            _builder.set_type(_meta_axon_type::OUT);
+            _builder.set_data_format(data_format::get_unknow());
+            _out_axon = add("_out", _builder);
+            _builder.reset();
+            _builder.set_type(_meta_axon_type::IN_AXON);
+            _builder.set_data_format(data_format::get_unknow());
+            _builder.add_action(axon::signal::data_in,
+                [&](const data_context & _context, const axon & _axon, const data_pack & _in_pack){
+                    _out_axon->push(&_in_pack);
             });
-            add("_in", _in_axon);
+            _in_axon = add("_in", _builder);
+        }
+        p_axon_t get_in(){
+            return _in_axon;
+        }
+        p_axon_t get_out(){
+            return _out_axon;
         }
     };
 
@@ -656,7 +740,7 @@ namespace sf
             std::for_each(_spores.begin(), _spores.end(), [&](spore &_spore){
                 _spore._p_cluster = this;
                 _actuator_alloc_count += _spore.get_actuator_alloc_count();
-                
+
                 //distribute  the neure builder
 
             });
