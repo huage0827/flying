@@ -23,6 +23,7 @@ namespace sf
 
     class virtual_t;
     class base_object;
+    class object_container;
 
     class cluster;
     class data_trigger;
@@ -43,10 +44,13 @@ namespace sf
     class neure;
     class data_action;
 
+    class polymer;
+
 
     typedef std::shared_ptr<virtual_t> p_virtual_t;
     typedef std::shared_ptr<base_object> p_object_t;
     typedef std::list<p_object_t> object_list_t;
+    typedef std::shared_ptr<object_container> p_object_container_t;
 
     
     typedef std::shared_ptr<data_format> p_data_format_t;
@@ -60,6 +64,7 @@ namespace sf
 
 
     typedef std::shared_ptr<axon> p_axon_t;
+    typedef std::list<p_axon_t> axon_list_t;
 
     typedef std::shared_ptr<spore> p_spore_t;
     typedef std::list<p_spore_t> spore_list_t;
@@ -74,6 +79,11 @@ namespace sf
     typedef std::unique_ptr<pack_pool<data_pack>> p_pool_t;
 
     typedef std::shared_ptr<data_action> p_data_action_t;
+
+    typedef std::shared_ptr<polymer> p_polymer_t;
+    typedef std::list<p_polymer_t> polymer_list_t;
+    typedef std::shared_ptr<polymer_list_t> p_polymer_list_t;
+
 
     typedef std::function< bool(const p_object_t& )> walk_object_function;
     typedef std::function< void(const data_context &, const axon &, const data_pack & )> data_handler;
@@ -95,6 +105,12 @@ namespace sf
     };
 
     class base_object{     
+    public:
+        p_object_t get_parent(){
+            return _parent_object;
+        }
+    protected:
+        p_object_t _parent_object{nullptr};
     };
 
     class object_container: public base_object{
@@ -105,14 +121,29 @@ namespace sf
             if(!_p){
                 std::lock_guard<std::mutex> lk(_lock);
                 _childs.push_back(_p);
+                _p->_parent_object = this;
             }
             return _p;
+        }
+
+        object_container(const object_container& _other):base_object(_other._parent_object){
+            std::unique_lock<std::mutex> lock1(_lock, std::defer_lock);
+            std::unique_lock<std::mutex> lock2(_other._lock, std::defer_lock);
+            std::lock(lock1, lock2);
+            _childs = _other._childs;
+        }
+
+        object_container(object_container&& _other){
+            _parent_object = _other._parent_object;
+            std::lock_guard<std::mutex> lk(_lock);
+            std::swap(_childs, _other._childs);
         }
 
         p_object_t remove_child(p_object_t _p){
             if(!_p){
                 std::lock_guard<std::mutex> lk(_lock);
                 _childs.remove(_p);
+                _parent_object = nullptr;
             }
             return _p;
         }
@@ -129,15 +160,20 @@ namespace sf
 
         void walk_childs(const walk_object_function &_func){
             if(!_func) return;
+            std::lock_guard<std::mutex> lk(_lock);
             for (const auto &ite : _childs){
                 if(!(_func)(ite))
                     return;
             }
         }
+
+        bool has_childs(){
+            std::lock_guard<std::mutex> lk(_lock);
+            return _childs.size() > 0
+        }
     protected:
         mutable std::mutex _lock;
         object_list_t _childs;
-        p_object_t _parent_object{nullptr};
     };
 
     class data_format: public base_object{
@@ -205,7 +241,7 @@ namespace sf
     */
     class chain : base_object{
     public:
-        chain(){
+        chain():base_object(nullptr){
         }
 
         chain(p_axon_t _a1, p_axon_t _a2){
@@ -295,64 +331,91 @@ namespace sf
     };
     */
 
+    class polymer : base_object{
+    public:
+        void polymer(const axon_list_t& _as, p_neure_t _n){
+            _axon_list = _as;
+            _neure = _n;
+            check();
+        }
+        void is_avalid(){
+            return _is_avalid;
+        }
+    protected:
+        void check(){
+            if(!_neure){
+                return;
+            }
+            _is_avalid = true;
+            for (p_axon_t &_a : _axon_list){
+                if(_bindto == _meta_axon_type::UNKNOWN)
+                    _bindto = _a->get_type();
+                else
+                    _is_avalid = _bindto == _a->get_type();
+                if(!_is_avalid){
+                    break;
+                }
+            }
+            if(_is_avalid){
+                _neure->walk_childs([&](const p_object_t& _p) -> bool{
+                    if(!dynamic_pointer_cast<chain>(_p)){
+                        _is_avalid = false;
+                        return false;
+                    }
+                });
+            }
+            if(!_is_avalid){
+                _bindto = _meta_axon_type::UNKNOWN;
+            }
+        }
+    protected:
+        _meta_axon_type _bindto{_meta_axon_type::UNKNOWN};
+        bool _is_avalid{false};
+
+        axon_list_t _axon_list;
+        p_neure_t _neure;
+    }
+
     /*
     neure 一组以确定方式聚合的axon,chain或者子neure
     */
     enum neure_type{
         _unknow = 0,
-        _axon_list = 1 << 0, 
-        _chain_list = 1 << 1, 
-        _neure_list = 1 << 2, 
         _addition = 1 << 16, 
         _multiplication = 1 << 17
     };
-    class neure{
+    class neure : public object_container{
     public:
-        neure(){
+        neure():object_container(nullptr){
 
         }
-        neure(const neure& _other):_type(_other._type),_vector(_other._vector){
+        neure(const neure& _other){
+            _parent_object = _other._parent_object;
+            _type = _other._type;
+            std::unique_lock<std::mutex> lock1(_lock, std::defer_lock);
+            std::unique_lock<std::mutex> lock2(_other._lock, std::defer_lock);
+            std::lock(lock1, lock2);
+            _childs = _other._childs;
         }
-        neure(neure&& _other):_type(_other._type){
-            std::swap(_vector,_other._vector);
+        neure(neure&& _other){
+            _parent_object = _other._parent_object;
+            _type = _other._type;
+            std::lock_guard<std::mutex> lk(_lock);
+            std::swap(_childs, _other._childs);
         }
-        neure(neure_type _t):_type(_t){
+        neure(neure_type _t, object_list_t &&_chs):_type(_t){
+            std::swap(_childs, _chs);
         }
-
-        template<class T>
-        void add(std::shared_ptr<T> _item){
-            _vector.push_back(virtual_t::make_ptr<T>(_item));
-        }
-
-        neure(neure_type _t, const std::vector<p_neure_t>& _ns):_type(neure_type::_neure_list |  _t){
-            for(p_neure_t &_p : _ns){
-                if(_p)
-                    _vector.push_back(virtual_t::make_ptr(_p));
-            }
-        }
-        neure(neure_type _t, const std::vector<p_axon_t>& _as):_type(neure_type::_axon_list | t){
-            for(p_neure_t &_a : _as){
-                if(_a)
-                    _vector.push_back(virtual_t::make_ptr(_a));
-            }
-        }
-        neure(const std::vector<p_chain_t>& _cs):_type(neure_type::_chain_list){
-            for(p_neure_t &_c : _cs){
-                if(_c)
-                    _vector.push_back(virtual_t::make_ptr(_c));
-            }
+        neure(neure_type _t, const object_list_t &_chs):_type(_t){
+            _childs = _chs;
         }
 
         neure_type get_type() const {
             return _type;
         }
 
-        bool is_empty() const {
-            return _vector.empty();
-        }
     protected:
         neure_type _type{_unknow};
-        std::vector<p_virtual_t> _vector;
     }
 
     /*
@@ -362,20 +425,18 @@ namespace sf
     {
 
     public:
-
         void matrix(){
-
         }
-        void matrix(const matrix& _c):_p_spore_list(_c._p_spore_list),_in_neure(_c._in_neure),_out_neure(_c._out_neure){
+        void matrix(const matrix& _c):_p_spore_list(_c._p_spore_list),_p_in_neure(_c._p_in_neure),_p_out_neure(_c._p_out_neure){
         }
-        void matrix(matrix&& _c):_in_neure(std::move(_c._in_neure)),_out_neure(std::move(_c._out_neure)){
+        void matrix(matrix&& _c):_p_in_neure(std::move(_c._p_in_neure)),_p_out_neure(std::move(_c._p_out_neure)){
             std::swap(_p_spore_list, _c._p_spore_list);
         }
         void matrix(p_spore_t  _p_s){
             if(_p_s){
-                std::vector<p_axon_t> _is;
-                std::vector<p_axon_t> _os;
-                _p_s->walk_axon([&](const std::string& _name, const p_axon_t & _p){
+                object_list_t _is;
+                object_list_t _os;
+                _p_s->walk_axon([&](const std::string& _name, const p_axon_t & _p)->bool{
                     if(_p){
                         if(_p->get_type() == IN_AXON){
                             _is.push_back(_p);
@@ -383,19 +444,34 @@ namespace sf
                             _os.push_back(_p);
                         }
                     }
+                    return true;
                 });
-                _in_neure = std::make_shared<neure>(neure_type::_multiplication,_is);
-                _out_neure = std::make_shared<neure>(neure_type::_multiplication,_os);
+                _p_in_neure = std::make_shared<neure>(neure_type::_multiplication, std::move(_is));
+                _p_out_neure = std::make_shared<neure>(neure_type::_multiplication,std::move(_os));
             }
         }
 
         void matrix(p_axon_t _p_a){
             if(_p_a){
                 if(_p_a->get_type() == IN_AXON)
-                    _in_neure = std::make_shared<neure>(neure_type::_multiplication, {_p_a});
+                    _p_in_neure = std::make_shared<neure>(neure_type::_multiplication, {dynamic_pointer_cast<base_object>(_p_a)});
                 else if(_p_a->get_type() == OUT_AXON)
-                    _out_neure = std::make_shared<neure>(neure_type::_multiplication, {_p_a});
+                    _p_out_neure = std::make_shared<neure>(neure_type::_multiplication, {dynamic_pointer_cast<base_object>(_p_a)});
             }
+        }
+
+        void matrix(const std::vector<p_axon_t>& _p_as){
+            object_list_t _is;
+            object_list_t _os;
+            for (auto &_a: _p_as){
+                if(_a->get_type() == IN_AXON){
+                    _is.push_back(_p);
+                }else if(_a->get_type() == OUT_AXON){
+                    _os.push_back(_p);
+                }
+            }
+            _p_in_neure = std::make_shared<neure>(neure_type::_multiplication, std::move(_is));
+            _p_out_neure = std::make_shared<neure>(neure_type::_multiplication,std::move(_os));
         }
 
         matrix&& operator*(const matrix &_other){
@@ -415,44 +491,103 @@ namespace sf
     protected:
         static matrix&& _union(const matrix &_m1, const matrix &_m2, neure_type _type){
             matrix _m;
-            _m._p_spore_list = std::make_shared<spore_list_t>();
-            if(_m2._p_spore_list)
-                _m._p_spore_list->assign(_m2._p_spore_list->begin(), _m2._p_spore_list->end());
-            if(_m1._p_spore_list)
-                _m._p_spore_list->assign(_m1._p_spore_list->begin(), _m1._p_spore_list->end());
-            _m._in_neure = std::make_shared<neure>(_type, {_m1._in_neure, _m2._in_neure});
-            _m._out_neure = std::make_shared<neure>(_type, {_m1._out_neure, _m2._out_neure});
+            if(_m2._p_spore_list || _m2._p_spore_list)
+                _m._p_spore_list = std::make_shared<spore_list_t>();
+            else{
+                if(_m2._p_spore_list)
+                    _m._p_spore_list->assign(_m2._p_spore_list->begin(), _m2._p_spore_list->end());
+                if(_m1._p_spore_list)
+                    _m._p_spore_list->assign(_m1._p_spore_list->begin(), _m1._p_spore_list->end());
+            }
+            if(_m2._p_polymer_list || _m2._p_polymer_list)
+                _m._p_polymer_list = std::make_shared<polymer_list_t>();
+            else{
+                if(_m2._p_polymer_list)
+                    _m._p_polymer_list->assign(_m2._p_polymer_list->begin(), _m2._p_polymer_list->end());
+                if(_m1._p_polymer_list)
+                    _m._p_polymer_list->assign(_m1._p_polymer_list->begin(), _m1._p_polymer_list->end());
+            }
+            _m._p_in_neure = std::make_shared<neure>(_type, {dynamic_pointer_cast<base_object>(_m1._p_in_neure), dynamic_pointer_cast<base_object>(_m2._p_in_neure)});
+            _m._p_out_neure = std::make_shared<neure>(_type, {dynamic_pointer_cast<base_object>(_m1._p_out_neure), dynamic_pointer_cast<base_object>(_m2._p_out_neure)});
             return std::move(_m);
         }
 
-        static matrix&& _connect(const matrix &_m1, const matrix &_m2){
+        static matrix&& _connect(const matrix &_from, const matrix &_to){
             //_m2 必须包含输入
-            if(!_m2._in_neure || _m2._in_neure->is_empty()){
+            if(!_to._p_in_neure || !_to._p_in_neure->has_childs()){
                 //MSG...
                 return std::move(matrix());
             }
-            if(!_m1._out_neure || _m1._out_neure->is_empty())
-                return _union(_m1, _m2, neure_type::_multiplication); 
+            if(!_from._p_out_neure || !_from._p_out_neure->has_childs())
+                return _union(_from, _to, neure_type::_multiplication); 
             matrix _m;
-            for(auto &_out : _m1._out_neure){
-                if((_out->get_type() & neure_type::_neure_list) == neure_type::_neure_list){
-
-                }else if((_out->get_type() & neure_type::_axon_list) == neure_type::_axon_list){
-
-                }else if((_out->get_type() & neure_type::_chain_list) == neure_type::_chain_list){
-                    //MSG...
-                }
-            }
-
+            _connect(_m, _from._p_out_neure, _to._p_in_neure);
+            if(!_m._p_spore_list && (_from._p_spore_list || _to._p_spore_list))
+                _m._p_spore_list = std::make_shared<spore_list_t>();
+            if(_from._p_spore_list)
+                _m._p_spore_list->assign(_from._p_spore_list->begin(), _from._p_spore_list->end());
+            if(_to._p_spore_list)
+                _m._p_spore_list->assign(_to._p_spore_list->begin(), _to._p_spore_list->end());
+            if(!_m._p_polymer_list && (_from._p_polymer_list || _to._p_polymer_list))
+                _m._p_polymer_list = std::make_shared<polymer_list_t>();
+            if(_from._p_polymer_list)
+                _m._p_polymer_list->assign(_from._p_polymer_list->begin(), _from._p_polymer_list->end());
+            if(_to._p_polymer_list)
+                _m._p_polymer_list->assign(_to._p_polymer_list->begin(), _to._p_polymer_list->end());
             return std::move(_m);
+        }
+
+        static void _connect(matrix &_matrix, p_neure_t _from_neure, p_neure_t _to_neure){
+            object_list_t _from_objs;
+            _from_neure->walk_childs([&](const p_object_t& _obj) -> bool{
+                p_neure_t _neure = dynamic_pointer_cast<neure>(_obj);
+                if(_neure){
+                    p_spore_t _spore = std::make_shared<spore_odd>();
+                    if(!_matrix._p_spore_list)
+                        _matrix._p_spore_list = std::make_shared<spore_list_t>();
+                    _matrix._p_spore_list->push_back(_spore);
+                    matrix _m(_spore);
+                    _connect(_matrix, _neure, _m._p_in_neure);
+                    _from_objs.push_back(_m._p_out_neure);
+                }else if(dynamic_pointer_cast<axon>(_obj)){
+                    _from_objs.push_back(_obj);
+                }
+            });
+
+            object_list_t _to_objs;
+            _to_neure->walk_childs([&](const p_object_t& _obj) -> bool{
+                p_neure_t _neure = dynamic_pointer_cast<neure>(_obj);
+                if(_neure){
+                    p_spore_t _spore = std::make_shared<spore_odd>();
+                    if(!_matrix._p_spore_list)
+                        _matrix._p_spore_list = std::make_shared<spore_list_t>();
+                    _matrix._p_spore_list->push_back(_spore);
+                    matrix _m(_spore);
+                    _connect(_matrix, _m._p_out_neure, _neure);
+                    _to_objs.push_back(_m._p_in_neure);
+                }else if(dynamic_pointer_cast<axon>(_obj)){
+                    _to_objs.push_back(_obj);
+                }
+            });
+            if(_from_objs.size() > 1 && _to_objs.size() > 1){
+                p_spore_t _spore = std::make_shared<spore_odd>();
+                _matrix._p_spore_list->push_back(_spore);
+                matrix _m(_spore);
+                _connect(_matrix, _m._p_out_neure, std::make_shared<neure>(_to_objs));
+                _to_objs.clear();
+                _to_objs.push_back(_m._p_in_neure);
+            }else
+            {
+
+            }
         }
 
     protected:
         p_spore_list_t _p_spore_list{nullptr};
-        p_neure_t _in_neure{nullptr};
-        p_neure_t _out_neure{nullptr};
+        p_neure_t _p_in_neure{nullptr};
+        p_neure_t _p_out_neure{nullptr};
+        p_polymer_list_t _p_polymer_list{nullptr};
     };
-
 
     class axon_builder;
     class axon{
