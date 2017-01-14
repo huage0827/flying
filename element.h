@@ -127,9 +127,11 @@ namespace sf
         }
 
         object_container(const object_container& _other):base_object(_other._parent_object){
-            std::unique_lock<std::mutex> lock1(_lock, std::defer_lock);
-            std::unique_lock<std::mutex> lock2(_other._lock, std::defer_lock);
-            std::lock(lock1, lock2);
+            //std::unique_lock<std::mutex> lock1(_lock, std::defer_lock);
+            //std::unique_lock<std::mutex> lock2(_other._lock, std::defer_lock);
+            //std::lock(lock1, lock2);
+            //_childs = _other._childs;
+            std::lock_guard lock(_other._lock);
             _childs = _other._childs;
         }
 
@@ -137,6 +139,13 @@ namespace sf
             _parent_object = _other._parent_object;
             std::lock_guard<std::mutex> lk(_lock);
             std::swap(_childs, _other._childs);
+        }
+
+        object_container(const object_list_t& _object_list):_childs(_object_list){
+        }
+
+        object_container(object_list_t&& _object_list){
+            std::swap(_childs, _object_list);
         }
 
         p_object_t remove_child(p_object_t _p){
@@ -269,68 +278,8 @@ namespace sf
     };
 
     /*
-    class matrix{
-    public:
-    void matrix(){}
-
-    void matrix(axon_builder &_axon){
-    add({p_axon_builder_t(&_axon)});
-    }
-    void matrix(std::vector<p_axon_builder_t> &_axons){
-    add(_axons);
-    }
-    void matrix(std::vector<p_axon_builder_t> &&_axons){
-    add(std::move(_axons));
-    }
-    void matrix(std::vector<p_chain_builder_t> &_chains){
-    add(_chains);
-    }
-    void matrix(std::vector<p_chain_builder_t> &&_chains){
-    add(std::move(_chains));
-    }
-
-    void add(std::vector<p_axon_builder_t> &_axons){
-    _meta_axon_type _t = _meta_axon_type::UNKNOWN;
-    for_each(_axons.begin(), _axons.end(),  [&](p_axon_builder_t &_axon){
-    if(_t != _meta_axon_type::UNKNOWN && _axon->_type != _t){
-    _t = _meta_axon_type::UNKNOWN;
-    break;
-    }
-    _t = _axon->_type;
-    });
-    if(_t == _meta_axon_type::IN_AXON)
-    _axons_in.push_back(_axons);
-    else if(_t == _meta_axon_type::OUT_AXON)
-    _axons_out.push_back(_axons);
-    }
-    void add(std::vector<p_axon_builder_t> &&_axons){
-    _meta_axon_type _t = _meta_axon_type::UNKNOWN;
-    for_each(_axons.begin(), _axons.end(),  [&](p_axon_builder_t &_axon){
-    if(_t != _meta_axon_type::UNKNOWN && _axon->_type != _t){
-    _t = _meta_axon_type::UNKNOWN;
-    break;
-    }
-    _t = _axon->_type;
-    });
-    if(_t == _meta_axon_type::IN_AXON)
-    _axons_in.emplace_back(_axons);
-    else if(_t == _meta_axon_type::OUT_AXON)
-    _axons_out.emplace_back(_axons);
-    }
-    void add(std::list<p_chain_builder_t> &_chains){
-    _chains.push_back(_chains);
-    }
-    void add(std::list<p_chain_builder_t> &&_chains){
-    _chains.emplace_back(_chains);
-    }
-
-    protected:
-    std::list<std::vector<p_axon_builder_t>> _axons_in;
-    std::list<std::vector<p_axon_builder_t>> _axons_out;
-    std::list<p_chain_builder_t> _chains;
-    };
+    polymer
     */
-
     class polymer : base_object{
     public:
         void polymer(const axon_list_t& _as, p_neure_t _n){
@@ -373,7 +322,7 @@ namespace sf
         bool _is_avalid{false};
 
         axon_list_t _axon_list;
-        p_neure_t _neure;
+        p_neure_t _neure{nullptr};
     }
 
     /*
@@ -583,9 +532,9 @@ namespace sf
         }
 
     protected:
-        p_spore_list_t _p_spore_list{nullptr};
         p_neure_t _p_in_neure{nullptr};
         p_neure_t _p_out_neure{nullptr};
+        p_spore_list_t _p_spore_list{nullptr};
         p_polymer_list_t _p_polymer_list{nullptr};
     };
 
