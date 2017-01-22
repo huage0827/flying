@@ -3,10 +3,6 @@
 #include <memory>
 
 namespace flyingspore{
-
-    class actuator;
-    typedef std::shared_ptr<actuator> p_actuator_t;
-
     class actuator{
 
     };

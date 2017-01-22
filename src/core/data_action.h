@@ -1,16 +1,16 @@
 #ifndef flying_spore_data_action_h
 #define flying_spore_data_action_h
 #include <functional>
+#include "fsd.h"
 #include "data_trigger.h"
-#include "data_context.h"
-#include "axon.h"
 
 namespace flyingspore{
 
-    typedef std::function< void(const data_context &, const axon &, const data_pack & )> data_handler;
+    FS_DEF(data_context);
+    FS_DEF(axon);
+    FS_DEF(data_pack);
 
-    class data_action;
-    typedef std::shared_ptr<data_action> p_data_action_t;
+    typedef std::function< void(p_data_context_t,p_axon_t, p_data_pack_t)> data_handler;
 
     class data_action{
     public:

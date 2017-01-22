@@ -5,9 +5,6 @@
 
 namespace flyingspore{
 
-    class data_pack;
-    typedef std::shared_ptr<data_pack> p_data_pack_t;
-
     class data_pack{
     public:
         enum signal{before_changed,  after_changed};

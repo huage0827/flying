@@ -1,5 +1,5 @@
 #include "chain.h"
-
+#include "axon.h"
 namespace flyingspore{
 
     chain::chain(p_object_t _parent /*= nullptr*/) :fobject(_parent)

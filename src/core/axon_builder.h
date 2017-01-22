@@ -1,6 +1,7 @@
 #ifndef flying_spore_axon_builder_h
 #define flying_spore_axon_builder_h
 #include "axon.h"
+#include <mutex>
 
 namespace flyingspore{
 

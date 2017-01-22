@@ -5,8 +5,6 @@
 #include "chain.h"
 
 namespace flyingspore{
-
-
     class chain_list : fcontainer<chain>{
     };
 }

@@ -1,10 +1,12 @@
 #ifndef flying_spore_data_pack_builder_h
 #define flying_spore_data_pack_builder_h
-#include "data_pack.h"
+#include "fsd.h"
 
 namespace flyingspore{
-    class data_pack_builder{
+    FS_DEF(axon);
 
+    class data_pack_builder{
+        data_pack_builder(p_axon_t _p_axon);
     };
 }
 

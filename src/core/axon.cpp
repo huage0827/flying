@@ -2,11 +2,7 @@
 
 namespace flyingspore{
 
-    data_pack_builder&& flyingspore::axon::get_data_pack_builder(){
-        return std::move(data_pack_builder());
-    }
-
-    void axon::push(data_pack&& _data_pack){
+    void axon::push(data_pack* _data_pack){
 
     }
 
@@ -20,10 +16,6 @@ namespace flyingspore{
 
     p_actuator_t flyingspore::axon::get_actuator() const{
         return _actuator;
-    }
-
-    void axon::push(const data_pack& _data_pack){
-
     }
 
     p_matrix_t operator & (const p_axon_t &_a1, const p_axon_t &_a2){

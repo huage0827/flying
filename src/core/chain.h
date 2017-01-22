@@ -1,12 +1,11 @@
 #ifndef flying_spore_chain_h
 #define flying_spore_chain_h
-#include <memory>
+#include "fsd.h"
 #include "fobject.h"
 
 namespace flyingspore{
 
-    class chain;
-    typedef std::shared_ptr<chain> p_chain_t;
+    FS_DEF(axon);
 
     /*
     链，两端是axon，一个in， 一个out
